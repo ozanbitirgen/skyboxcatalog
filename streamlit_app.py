@@ -160,23 +160,12 @@ with st.sidebar:
     pageNumber = st.number_input("pageNumber", min_value=1, value=1, step=1)
     event = st.text_input("event", value="")
     eventType = st.selectbox("eventType", options=["", "Concert", "Theater", "Sports", "Other"], index=0)
-    categoryId = st.text_input("categoryId", value="")
-    category = st.text_input("category", value="")
-    venueId = st.text_input("venueId", value="")
     venue = st.text_input("venue", value="")
     city = st.text_input("city", value="")
-    state = st.multiselect("state", options=[], default=[])
-    country = st.multiselect("country", options=[], default=[])
     eventDateFrom = st.date_input("eventDateFrom", value=None, format="YYYY-MM-DD")
     eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
-    eventTimeFrom = st.time_input("eventTimeFrom", value=None)
-    eventTimeTo = st.time_input("eventTimeTo", value=None)
     keywords_text = st.text_area("keywords (comma-separated)", value="")
-    eventId_text = st.text_input("eventId (comma-separated integers)", value="")
-    performerId_text = st.text_input("performerId", value="")
-    dayOfWeek_text = st.text_input("dayOfWeek (comma-separated 1-7)", value="")
     excludeParking = st.checkbox("excludeParking", value=False)
-    sortedBy = st.selectbox("sortedBy", options=["", "ID", "DATE", "EVENT_NAME"], index=0)
     run = st.button("Search")
 
 params = {}
@@ -187,54 +176,17 @@ if event:
     params["event"] = event
 if eventType:
     params["eventType"] = eventType
-if categoryId.strip():
-    try:
-        params["categoryId"] = int(categoryId)
-    except ValueError:
-        st.warning("categoryId must be an integer")
-if category.strip():
-    params["category"] = category
-if venueId.strip():
-    try:
-        params["venueId"] = int(venueId)
-    except ValueError:
-        st.warning("venueId must be an integer")
 if venue.strip():
     params["venue"] = venue
 if city.strip():
     params["city"] = city
-if state:
-    params["state"] = list(state)
-if country:
-    params["country"] = list(country)
 if eventDateFrom:
     params["eventDateFrom"] = eventDateFrom.strftime("%Y-%m-%d")
 if eventDateTo:
     params["eventDateTo"] = eventDateTo.strftime("%Y-%m-%d")
-if eventTimeFrom:
-    params["eventTimeFrom"] = eventTimeFrom.strftime("%H:%M")
-if eventTimeTo:
-    params["eventTimeTo"] = eventTimeTo.strftime("%H:%M")
 keywords = [x.strip() for x in keywords_text.split(",") if x.strip()]
 if keywords:
     params["keywords"] = keywords
-if eventId_text.strip():
-    try:
-        params["eventId"] = [int(x) for x in eventId_text.split(",") if x.strip()]
-    except ValueError:
-        st.warning("eventId must be comma-separated integers")
-if performerId_text.strip():
-    try:
-        params["performerId"] = int(performerId_text)
-    except ValueError:
-        st.warning("performerId must be an integer")
-if dayOfWeek_text.strip():
-    try:
-        params["dayOfWeek"] = [int(x) for x in dayOfWeek_text.split(",") if x.strip()]
-    except ValueError:
-        st.warning("dayOfWeek must be comma-separated integers 1-7")
-if sortedBy:
-    params["sortedBy"] = sortedBy
 params["excludeParking"] = str(bool(excludeParking)).lower()
 
 st.title("Skybox Event Catalog Search")

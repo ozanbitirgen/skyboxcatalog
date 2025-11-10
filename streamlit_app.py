@@ -288,10 +288,6 @@ if st.session_state['rows_df'] is not None:
                 mime='text/csv'
             )
 
-# Show raw JSON if available
-if st.session_state['raw_data'] is not None:
-    st.subheader("Raw JSON")
-    st.json(st.session_state['raw_data'])
 
 st.subheader("Search history")
 _hist = _load_history()

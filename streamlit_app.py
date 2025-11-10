@@ -147,6 +147,23 @@ def _load_saved_entry(entry_id):
             json_path = it.get("json_path")
             if csv_path and os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
+                # Normalize nested fields to names for display/save
+                for _c in ['venue', 'performer']:
+                    if _c in df.columns:
+                        def _extract_name(x):
+                            try:
+                                if isinstance(x, str) and (x.strip().startswith('{') or x.strip().startswith('[')):
+                                    obj = json.loads(x)
+                                else:
+                                    obj = x
+                                if isinstance(obj, dict) and 'name' in obj:
+                                    return obj.get('name')
+                                if isinstance(obj, list) and obj and isinstance(obj[0], dict) and 'name' in obj[0]:
+                                    return obj[0].get('name')
+                            except Exception:
+                                return x
+                            return x
+                        df[_c] = df[_c].apply(_extract_name)
                 # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
                 _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
                 if _col is not None:
@@ -408,6 +425,23 @@ if run:
             st.caption(last_url)
         if all_rows:
             df = pd.DataFrame(all_rows)
+            # Normalize nested fields to names for display/save
+            for _c in ['venue', 'performer']:
+                if _c in df.columns:
+                    def _extract_name(x):
+                        try:
+                            if isinstance(x, str) and (x.strip().startswith('{') or x.strip().startswith('[')):
+                                obj = json.loads(x)
+                            else:
+                                obj = x
+                            if isinstance(obj, dict) and 'name' in obj:
+                                return obj.get('name')
+                            if isinstance(obj, list) and obj and isinstance(obj[0], dict) and 'name' in obj[0]:
+                                return obj[0].get('name')
+                        except Exception:
+                            return x
+                        return x
+                    df[_c] = df[_c].apply(_extract_name)
             # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
             _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
             if _col is not None:

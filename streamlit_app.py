@@ -391,6 +391,21 @@ if st.session_state['rows_df'] is not None:
                 'SellerOwn': [False] * len(selected_full),
                 'ListingNotes': [''] * len(selected_full),
             })
+            # Add section toggle above the download button
+            current_section = st.radio(
+                "Choose Section",
+                options=["RESERVED", "GA"],
+                index=(0 if st.session_state.get('export_section', 'RESERVED') == 'RESERVED' else 1),
+                horizontal=True,
+                key=f"main_section_toggle"
+            )
+            
+            # Update session state if section changes
+            if current_section != st.session_state.get('export_section'):
+                st.session_state['export_section'] = current_section
+                # Update the section in the export DataFrame
+                export_df['Section'] = [current_section] * len(export_df)
+                
             csv_bytes = export_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label='Download export CSV',
@@ -411,7 +426,7 @@ else:
         with st.expander(title, expanded=False):
             st.text("Parameters:")
             st.code(json.dumps(entry.get('params', {}), ensure_ascii=False, indent=2))
-            # Per-entry Section toggle
+            # Per-entry Section toggle and export update
             saved_section = (entry.get('params', {}) or {}).get('_exportSection', 'RESERVED')
             sec_key = f"hist_section_{entry.get('id')}"
             new_section = st.radio(
@@ -423,6 +438,16 @@ else:
             )
             if new_section != saved_section:
                 _update_entry_section(entry.get('id'), new_section)
+                
+                # Update the export file with the new section
+                export_csv_path = entry.get('export_csv_path')
+                if export_csv_path and os.path.exists(export_csv_path):
+                    try:
+                        export_df = pd.read_csv(export_csv_path)
+                        export_df['Section'] = new_section
+                        export_df.to_csv(export_csv_path, index=False)
+                    except Exception as e:
+                        st.error(f"Error updating export file: {e}")
             c1, c2, c3 = st.columns([1,1,2])
             with c1:
                 st.button("Load", key=f"load_{entry.get('id')}", on_click=_queue_load, args=(entry.get('id'),))
@@ -430,14 +455,29 @@ else:
                 st.button("Delete", key=f"del_{entry.get('id')}", on_click=_queue_delete, args=(entry.get('id'),))
             with c3:
                 st.write(name)
-                if os.path.exists(entry.get('csv_path', '')):
-                    with open(entry.get('csv_path'), 'rb') as f:
+                # Original CSV download button
+                csv_path = entry.get('csv_path', '')
+                export_csv_path = entry.get('export_csv_path', '')
+                if os.path.exists(csv_path):
+                    with open(csv_path, 'rb') as f:
                         st.download_button(
-                            label='Download CSV',
+                            label='Download Original CSV',
                             data=f.read(),
-                            file_name=os.path.basename(entry.get('csv_path')),
+                            file_name=os.path.basename(csv_path),
                             mime='text/csv',
-                            key=f"dl_{entry.get('id')}"
+                            key=f"dl_orig_{entry.get('id')}",
+                            use_container_width=True
+                        )
+                # Export format download button
+                if os.path.exists(export_csv_path):
+                    with open(export_csv_path, 'rb') as f:
+                        st.download_button(
+                            label='Download Export Format',
+                            data=f.read(),
+                            file_name=os.path.basename(export_csv_path),
+                            mime='text/csv',
+                            key=f"dl_export_{entry.get('id')}",
+                            use_container_width=True
                         )
 
 if run:

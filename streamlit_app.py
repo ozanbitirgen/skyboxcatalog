@@ -31,6 +31,9 @@ ALLOWED_COLUMNS = [
     "stubhubEventId",
 ]
 
+# Hidden defaults for API pagination
+DEFAULT_LIMIT = 1000
+
 HISTORY_DIR = os.path.join(os.path.dirname(__file__), "search_history")
 HISTORY_INDEX = os.path.join(HISTORY_DIR, "index.json")
 
@@ -138,6 +141,10 @@ def _load_saved_entry(entry_id):
                 allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
                 if allowed_cols:
                     df = df[allowed_cols].copy()
+                # Exclude rows where stubhubEventId is present and non-zero
+                if 'stubhubEventId' in df.columns:
+                    _s = pd.to_numeric(df['stubhubEventId'], errors='coerce')
+                    df = df[_s.isna() | (_s == 0)].copy()
                 if 'select' not in df.columns:
                     df.insert(0, 'select', False)
                 key_col = None
@@ -152,6 +159,7 @@ def _load_saved_entry(entry_id):
                 df.set_index(key_col, drop=False, inplace=True)
                 df.index.name = 'row_idx'
                 st.session_state['rows_df'] = df
+                st.session_state['raw_data'] = None
                 st.session_state['key_col_name'] = key_col
             if json_path and os.path.exists(json_path):
                 try:
@@ -170,9 +178,6 @@ def _queue_delete(entry_id):
 
 with st.sidebar:
     st.header("Search Parameters")
-    limit = st.number_input("limit (max 1000)", min_value=1, max_value=1000, value=100, step=50)
-    sortDir = st.selectbox("sortDir", options=["asc", "desc"], index=0)
-    pageNumber = st.number_input("pageNumber", min_value=1, value=1, step=1)
     event = st.text_input("event", value="")
     eventType = st.selectbox("eventType", options=["", "Concert", "Theater", "Sports", "Other"], index=0)
     venue = st.text_input("venue", value="")
@@ -184,9 +189,7 @@ with st.sidebar:
     run = st.button("Search")
 
 params = {}
-params["limit"] = min(int(limit), 1000)
-params["sortDir"] = sortDir
-params["pageNumber"] = int(pageNumber)
+
 if event:
     params["event"] = event
 if eventType:
@@ -334,49 +337,67 @@ else:
 
 if run:
     try:
-        resp = requests.get(url, headers=HEADERS, params=params, verify=False, timeout=30)
-        st.caption(resp.url)
-        if resp.status_code != 200:
-            st.error(f"Request failed: {resp.status_code}")
-        else:
-            if "application/json" in resp.headers.get("Content-Type", ""):
-                data = resp.json()
-                rows = data.get("rows") if isinstance(data, dict) else None
-                if rows:
-                    df = pd.DataFrame(rows)
-                    # Filter to allowed columns if present
-                    allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
-                    if allowed_cols:
-                        df = df[allowed_cols].copy()
-                    if 'select' not in df.columns:
-                        df.insert(0, 'select', False)
-                    # Set a stable unique key for reliable row editing
-                    key_col = None
-                    for cand in ['eventId', 'id', 'event_id', 'eventID']:
-                        if cand in df.columns:
-                            key_col = cand
-                            break
-                    if key_col is None:
-                        if 'row_id' not in df.columns:
-                            df.insert(1, 'row_id', range(1, len(df) + 1))
-                        key_col = 'row_id'
-                    # Preserve key both as a column and as index for readability; use column for alignment
-                    df.set_index(key_col, drop=False, inplace=True)
-                    df.index.name = 'row_idx'
-                    # Update session state so data persists across reruns
-                    st.session_state['rows_df'] = df
-                    st.session_state['raw_data'] = data
-                    st.session_state['key_col_name'] = key_col
-                    try:
-                        _save_search(params, df.drop(columns=['select']), data)
-                    except Exception:
-                        pass
-                    st.rerun()
-                else:
-                    st.session_state['rows_df'] = None
-                    st.session_state['raw_data'] = data
-                    st.rerun()
-            else:
+        all_rows = []
+        page = 1
+        last_url = None
+        while True:
+            q = dict(params)
+            q['pageNumber'] = page
+            q['limit'] = DEFAULT_LIMIT
+            resp = requests.get(url, headers=HEADERS, params=q, verify=False, timeout=30)
+            last_url = resp.url
+            if resp.status_code != 200:
+                st.error(f"Request failed on page {page}: {resp.status_code}")
+                break
+            if "application/json" not in resp.headers.get("Content-Type", ""):
                 st.warning("Non-JSON response received")
+                break
+            data = resp.json()
+            rows = data.get("rows") if isinstance(data, dict) else None
+            if not rows:
+                break
+            if isinstance(rows, list):
+                all_rows.extend(rows)
+            page += 1
+        if last_url:
+            st.caption(last_url)
+        if all_rows:
+            df = pd.DataFrame(all_rows)
+            # Filter to allowed columns if present
+            allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
+            if allowed_cols:
+                df = df[allowed_cols].copy()
+            # Exclude rows where stubhubEventId is present and non-zero
+            if 'stubhubEventId' in df.columns:
+                _s = pd.to_numeric(df['stubhubEventId'], errors='coerce')
+                df = df[_s.isna() | (_s == 0)].copy()
+            if 'select' not in df.columns:
+                df.insert(0, 'select', False)
+            # Set a stable unique key for reliable row editing
+            key_col = None
+            for cand in ['eventId', 'id', 'event_id', 'eventID']:
+                if cand in df.columns:
+                    key_col = cand
+                    break
+            if key_col is None:
+                if 'row_id' not in df.columns:
+                    df.insert(1, 'row_id', range(1, len(df) + 1))
+                key_col = 'row_id'
+            # Preserve key both as a column and as index for readability; use column for alignment
+            df.set_index(key_col, drop=False, inplace=True)
+            df.index.name = 'row_idx'
+            # Update session state so data persists across reruns
+            st.session_state['rows_df'] = df
+            st.session_state['raw_data'] = {"rows_count": len(all_rows)}
+            st.session_state['key_col_name'] = key_col
+            try:
+                _save_search(params, df.drop(columns=['select']), {"rows_count": len(all_rows)})
+            except Exception:
+                pass
+            st.rerun()
+        else:
+            st.session_state['rows_df'] = None
+            st.session_state['raw_data'] = None
+            st.rerun()
     except requests.exceptions.RequestException as e:
         st.error(f"Error: {e}")

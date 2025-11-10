@@ -102,15 +102,41 @@ def _save_search(params, df, raw):
     json_name = f"{date_label} - {event_label} - {kw_label}.json"
     csv_path = os.path.join(HISTORY_DIR, csv_name)
     json_path = os.path.join(HISTORY_DIR, json_name)
+    
+    # Create export format DataFrame
+    export_df = pd.DataFrame({
+        'DeliveryType': ['pdf'] * len(df),
+        'TicketCount': [''] * len(df),
+        'InHandAt': [''] * len(df),
+        'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
+        'ROW': ['GA'] * len(df),
+        'StubhubEventId': df[_find_col_case_insensitive(df, _DEF_STUBHUB_COL)] if _find_col_case_insensitive(df, _DEF_STUBHUB_COL) in df.columns else [0] * len(df),
+        'UnitCost': [0] * len(df),
+        'FaceValue': [''] * len(df),
+        'AutoBroadcast': [True] * len(df),
+        'SellerOwn': [False] * len(df),
+        'ListingNotes': [''] * len(df),
+    })
+    
+    # Save the original search results
     try:
         df.to_csv(csv_path, index=False)
     except Exception:
         df.reset_index(drop=True).to_csv(csv_path, index=False)
+    
+    # Save the export format as a separate file
+    export_csv_path = os.path.join(HISTORY_DIR, f"export_{csv_name}")
+    try:
+        export_df.to_csv(export_csv_path, index=False)
+    except Exception:
+        export_df.reset_index(drop=True).to_csv(export_csv_path, index=False)
+    
     try:
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(raw, f, ensure_ascii=False)
     except Exception:
         pass
+        
     items = _load_history()
     entry = {
         "id": entry_id,
@@ -118,6 +144,7 @@ def _save_search(params, df, raw):
         "row_count": int(len(df)),
         "params": params,
         "csv_path": csv_path,
+        "export_csv_path": export_csv_path,  # Add path to export format CSV
         "json_path": json_path,
     }
     items.append(entry)

@@ -111,7 +111,7 @@ def _save_search(params, df, raw):
         'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
         'ROW': ['GA'] * len(df),
         'StubhubEventId': df[_find_col_case_insensitive(df, _DEF_STUBHUB_COL)] if _find_col_case_insensitive(df, _DEF_STUBHUB_COL) in df.columns else [0] * len(df),
-        'UnitCost': [0] * len(df),
+        'UnitCost': [800] * len(df),
         'FaceValue': [''] * len(df),
         'AutoBroadcast': [True] * len(df),
         'SellerOwn': [False] * len(df),

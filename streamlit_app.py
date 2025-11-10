@@ -106,7 +106,7 @@ def _save_search(params, df, raw):
     # Create export format DataFrame
     export_df = pd.DataFrame({
         'DeliveryType': ['pdf'] * len(df),
-        'TicketCount': [''] * len(df),
+        'TicketCount': [4] * len(df),
         'InHandAt': [''] * len(df),
         'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
         'ROW': ['GA'] * len(df),
@@ -455,24 +455,12 @@ else:
                 st.button("Delete", key=f"del_{entry.get('id')}", on_click=_queue_delete, args=(entry.get('id'),))
             with c3:
                 st.write(name)
-                # Original CSV download button
-                csv_path = entry.get('csv_path', '')
+                # Single download button for export format
                 export_csv_path = entry.get('export_csv_path', '')
-                if os.path.exists(csv_path):
-                    with open(csv_path, 'rb') as f:
-                        st.download_button(
-                            label='Download Original CSV',
-                            data=f.read(),
-                            file_name=os.path.basename(csv_path),
-                            mime='text/csv',
-                            key=f"dl_orig_{entry.get('id')}",
-                            use_container_width=True
-                        )
-                # Export format download button
                 if os.path.exists(export_csv_path):
                     with open(export_csv_path, 'rb') as f:
                         st.download_button(
-                            label='Download Export Format',
+                            label='Download CSV',
                             data=f.read(),
                             file_name=os.path.basename(export_csv_path),
                             mime='text/csv',

@@ -145,6 +145,9 @@ def _load_saved_entry(entry_id):
         if str(it.get("id")) == str(entry_id):
             csv_path = it.get("csv_path")
             json_path = it.get("json_path")
+            _sec = it.get("params", {}).get("_exportSection")
+            if isinstance(_sec, str) and _sec in ("RESERVED", "GA"):
+                st.session_state['export_section'] = _sec
             if csv_path and os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
                 # Normalize nested fields to names for display/save
@@ -203,6 +206,20 @@ def _queue_load(entry_id):
 
 def _queue_delete(entry_id):
     st.session_state['pending_delete_entry'] = entry_id
+
+def _update_entry_section(entry_id, section):
+    try:
+        items = _load_history()
+        for it in items:
+            if str(it.get("id")) == str(entry_id):
+                params = it.get("params") or {}
+                params["_exportSection"] = section
+                it["params"] = params
+                break
+        _persist_history(items)
+        st.session_state['export_section'] = section
+    except Exception:
+        pass
 
 with st.sidebar:
     st.header("Search Parameters")
@@ -325,16 +342,6 @@ if st.session_state['rows_df'] is not None:
     if 'select' in st.session_state['rows_df'].columns:
         selected_full = st.session_state['rows_df'][st.session_state['rows_df']['select']]
         st.caption(f"Selected rows: {len(selected_full)} of {len(st.session_state['rows_df'])}")
-        # Persistent Section choice (shown even if no rows are selected)
-        if 'export_section' not in st.session_state:
-            st.session_state['export_section'] = 'RESERVED'
-        section_choice = st.radio(
-            "Choose Section",
-            options=["RESERVED", "GA"],
-            index=(0 if st.session_state['export_section'] == 'RESERVED' else 1),
-            horizontal=True,
-            key="export_section",
-        )
         if not selected_full.empty:
             _col = _find_col_case_insensitive(selected_full, _DEF_STUBHUB_COL)
             if _col is not None:
@@ -342,11 +349,13 @@ if st.session_state['rows_df'] is not None:
                 sh_series = sh_series.astype('Int64')
             else:
                 sh_series = pd.Series([pd.NA] * len(selected_full), index=selected_full.index, dtype='Int64')
+            # Use current session section value (from history or default)
+            current_section = st.session_state.get('export_section', 'RESERVED')
             export_df = pd.DataFrame({
                 'DeliveryType': ['pdf'] * len(selected_full),
                 'TicketCount': [''] * len(selected_full),
                 'InHandAt': [''] * len(selected_full),
-                'Section': [section_choice] * len(selected_full),
+                'Section': [current_section] * len(selected_full),
                 'ROW': ['GA'] * len(selected_full),
                 'StubhubEventId': sh_series,
                 'UnitCost': [0] * len(selected_full),
@@ -375,6 +384,18 @@ else:
         with st.expander(title, expanded=False):
             st.text("Parameters:")
             st.code(json.dumps(entry.get('params', {}), ensure_ascii=False, indent=2))
+            # Per-entry Section toggle
+            saved_section = (entry.get('params', {}) or {}).get('_exportSection', 'RESERVED')
+            sec_key = f"hist_section_{entry.get('id')}"
+            new_section = st.radio(
+                "Choose Section",
+                options=["RESERVED", "GA"],
+                index=(0 if saved_section == 'RESERVED' else 1),
+                horizontal=True,
+                key=sec_key,
+            )
+            if new_section != saved_section:
+                _update_entry_section(entry.get('id'), new_section)
             c1, c2, c3 = st.columns([1,1,2])
             with c1:
                 st.button("Load", key=f"load_{entry.get('id')}", on_click=_queue_load, args=(entry.get('id'),))
@@ -471,7 +492,9 @@ if run:
             st.session_state['raw_data'] = {"rows_count": len(all_rows)}
             st.session_state['key_col_name'] = key_col
             try:
-                _save_search(params, df.drop(columns=['select']), {"rows_count": len(all_rows)})
+                params_to_save = dict(params)
+                params_to_save["_exportSection"] = st.session_state.get('export_section', 'RESERVED')
+                _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(all_rows)})
             except Exception:
                 pass
             st.rerun()

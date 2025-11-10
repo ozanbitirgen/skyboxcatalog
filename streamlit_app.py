@@ -20,6 +20,17 @@ st.set_page_config(page_title="Skybox Event Catalog Search", layout="wide")
 
 url = "https://skybox.vividseats.com/services/event-catalog/search"
 
+# Columns to display/save from results
+ALLOWED_COLUMNS = [
+    "id",
+    "name",
+    "date",
+    "venue",
+    "performer",
+    "keywords",
+    "stubhubEventId",
+]
+
 HISTORY_DIR = os.path.join(os.path.dirname(__file__), "search_history")
 HISTORY_INDEX = os.path.join(HISTORY_DIR, "index.json")
 
@@ -123,6 +134,10 @@ def _load_saved_entry(entry_id):
             json_path = it.get("json_path")
             if csv_path and os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
+                # Filter to allowed columns if present
+                allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
+                if allowed_cols:
+                    df = df[allowed_cols].copy()
                 if 'select' not in df.columns:
                     df.insert(0, 'select', False)
                 key_col = None
@@ -329,6 +344,10 @@ if run:
                 rows = data.get("rows") if isinstance(data, dict) else None
                 if rows:
                     df = pd.DataFrame(rows)
+                    # Filter to allowed columns if present
+                    allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
+                    if allowed_cols:
+                        df = df[allowed_cols].copy()
                     if 'select' not in df.columns:
                         df.insert(0, 'select', False)
                     # Set a stable unique key for reliable row editing

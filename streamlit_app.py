@@ -312,7 +312,7 @@ if st.session_state['rows_df'] is not None:
         if 'export_section' not in st.session_state:
             st.session_state['export_section'] = 'RESERVED'
         section_choice = st.radio(
-            "Section",
+            "Choose Section",
             options=["RESERVED", "GA"],
             index=(0 if st.session_state['export_section'] == 'RESERVED' else 1),
             horizontal=True,

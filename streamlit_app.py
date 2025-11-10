@@ -197,7 +197,6 @@ with st.sidebar:
     eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
     keywords_text = st.text_area("keywords (comma-separated)", value="")
     excludeParking = st.checkbox("excludeParking", value=False)
-    section_choice = st.radio("Section", options=["RESERVED", "GA"], index=0, horizontal=True)
     run = st.button("Search")
 
 params = {}
@@ -316,11 +315,12 @@ if st.session_state['rows_df'] is not None:
                 sh_series = sh_series.astype('Int64')
             else:
                 sh_series = pd.Series([pd.NA] * len(selected_full), index=selected_full.index, dtype='Int64')
+            section_choice_local = st.radio("Section", options=["RESERVED", "GA"], index=0, horizontal=True, key="export_section")
             export_df = pd.DataFrame({
                 'DeliveryType': ['pdf'] * len(selected_full),
                 'TicketCount': [''] * len(selected_full),
                 'InHandAt': [''] * len(selected_full),
-                'Section': [section_choice] * len(selected_full),
+                'Section': [section_choice_local] * len(selected_full),
                 'ROW': ['GA'] * len(selected_full),
                 'StubhubEventId': sh_series,
                 'UnitCost': [0] * len(selected_full),

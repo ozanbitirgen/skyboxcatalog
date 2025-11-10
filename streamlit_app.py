@@ -308,6 +308,16 @@ if st.session_state['rows_df'] is not None:
     if 'select' in st.session_state['rows_df'].columns:
         selected_full = st.session_state['rows_df'][st.session_state['rows_df']['select']]
         st.caption(f"Selected rows: {len(selected_full)} of {len(st.session_state['rows_df'])}")
+        # Persistent Section choice (shown even if no rows are selected)
+        if 'export_section' not in st.session_state:
+            st.session_state['export_section'] = 'RESERVED'
+        section_choice = st.radio(
+            "Section",
+            options=["RESERVED", "GA"],
+            index=(0 if st.session_state['export_section'] == 'RESERVED' else 1),
+            horizontal=True,
+            key="export_section",
+        )
         if not selected_full.empty:
             _col = _find_col_case_insensitive(selected_full, _DEF_STUBHUB_COL)
             if _col is not None:
@@ -315,7 +325,6 @@ if st.session_state['rows_df'] is not None:
                 sh_series = sh_series.astype('Int64')
             else:
                 sh_series = pd.Series([pd.NA] * len(selected_full), index=selected_full.index, dtype='Int64')
-            section_choice = st.radio("Section", options=["RESERVED", "GA"], index=0, horizontal=True, key="export_section")
             export_df = pd.DataFrame({
                 'DeliveryType': ['pdf'] * len(selected_full),
                 'TicketCount': [''] * len(selected_full),

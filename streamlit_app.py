@@ -34,6 +34,16 @@ ALLOWED_COLUMNS = [
 # Hidden defaults for API pagination
 DEFAULT_LIMIT = 1000
 
+# Helper: find a DataFrame column by case-insensitive name
+_DEF_STUBHUB_COL = "stubhubEventId"
+
+def _find_col_case_insensitive(df: pd.DataFrame, name: str):
+    low = name.lower()
+    for c in df.columns:
+        if str(c).lower() == low:
+            return c
+    return None
+
 HISTORY_DIR = os.path.join(os.path.dirname(__file__), "search_history")
 HISTORY_INDEX = os.path.join(HISTORY_DIR, "index.json")
 
@@ -137,14 +147,15 @@ def _load_saved_entry(entry_id):
             json_path = it.get("json_path")
             if csv_path and os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
-                # Filter to allowed columns if present
+                # Exclude rows where stubhubEventId is present (including 0). Keep only rows where it's truly null.
+                _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
+                if _col is not None:
+                    _s = pd.to_numeric(df[_col], errors='coerce')
+                    df = df[_s.isna()].copy()
+                # Now reduce to allowed columns for display/save
                 allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
                 if allowed_cols:
                     df = df[allowed_cols].copy()
-                # Exclude rows where stubhubEventId is present and non-zero
-                if 'stubhubEventId' in df.columns:
-                    _s = pd.to_numeric(df['stubhubEventId'], errors='coerce')
-                    df = df[_s.isna() | (_s == 0)].copy()
                 if 'select' not in df.columns:
                     df.insert(0, 'select', False)
                 key_col = None
@@ -363,14 +374,15 @@ if run:
             st.caption(last_url)
         if all_rows:
             df = pd.DataFrame(all_rows)
-            # Filter to allowed columns if present
+            # Exclude rows where stubhubEventId is present (including 0). Keep only rows where it's truly null.
+            _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
+            if _col is not None:
+                _s = pd.to_numeric(df[_col], errors='coerce')
+                df = df[_s.isna()].copy()
+            # Now reduce to allowed columns for display/save
             allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
             if allowed_cols:
                 df = df[allowed_cols].copy()
-            # Exclude rows where stubhubEventId is present and non-zero
-            if 'stubhubEventId' in df.columns:
-                _s = pd.to_numeric(df['stubhubEventId'], errors='coerce')
-                df = df[_s.isna() | (_s == 0)].copy()
             if 'select' not in df.columns:
                 df.insert(0, 'select', False)
             # Set a stable unique key for reliable row editing

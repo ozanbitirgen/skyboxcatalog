@@ -349,27 +349,32 @@ else:
 if run:
     try:
         all_rows = []
-        page = 1
-        last_url = None
-        while True:
-            q = dict(params)
-            q['pageNumber'] = page
-            q['limit'] = DEFAULT_LIMIT
-            resp = requests.get(url, headers=HEADERS, params=q, verify=False, timeout=30)
-            last_url = resp.url
-            if resp.status_code != 200:
-                st.error(f"Request failed on page {page}: {resp.status_code}")
-                break
-            if "application/json" not in resp.headers.get("Content-Type", ""):
-                st.warning("Non-JSON response received")
-                break
-            data = resp.json()
-            rows = data.get("rows") if isinstance(data, dict) else None
-            if not rows:
-                break
-            if isinstance(rows, list):
-                all_rows.extend(rows)
-            page += 1
+        with st.spinner("Loading results..."):
+            status = st.empty()
+            page = 1
+            last_url = None
+            while True:
+                status.write(f"Fetching page {page}...")
+                q = dict(params)
+                q['pageNumber'] = page
+                q['limit'] = DEFAULT_LIMIT
+                resp = requests.get(url, headers=HEADERS, params=q, verify=False, timeout=30)
+                last_url = resp.url
+                if resp.status_code != 200:
+                    st.error(f"Request failed on page {page}: {resp.status_code}")
+                    break
+                if "application/json" not in resp.headers.get("Content-Type", ""):
+                    st.warning("Non-JSON response received")
+                    break
+                data = resp.json()
+                rows = data.get("rows") if isinstance(data, dict) else None
+                if not rows:
+                    break
+                if isinstance(rows, list):
+                    all_rows.extend(rows)
+                page += 1
+            status.empty()
+
         if last_url:
             st.caption(last_url)
         if all_rows:

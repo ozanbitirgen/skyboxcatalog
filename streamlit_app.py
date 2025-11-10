@@ -147,11 +147,11 @@ def _load_saved_entry(entry_id):
             json_path = it.get("json_path")
             if csv_path and os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
-                # Exclude rows where stubhubEventId is present (including 0). Keep only rows where it's truly null.
+                # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
                 _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
                 if _col is not None:
                     _s = pd.to_numeric(df[_col], errors='coerce')
-                    df = df[_s.isna()].copy()
+                    df = df[_s.notna() & (_s != 0)].copy()
                 # Now reduce to allowed columns for display/save
                 allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
                 if allowed_cols:
@@ -379,11 +379,11 @@ if run:
             st.caption(last_url)
         if all_rows:
             df = pd.DataFrame(all_rows)
-            # Exclude rows where stubhubEventId is present (including 0). Keep only rows where it's truly null.
+            # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
             _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
             if _col is not None:
                 _s = pd.to_numeric(df[_col], errors='coerce')
-                df = df[_s.isna()].copy()
+                df = df[_s.notna() & (_s != 0)].copy()
             # Now reduce to allowed columns for display/save
             allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
             if allowed_cols:

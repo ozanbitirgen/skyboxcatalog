@@ -197,6 +197,7 @@ with st.sidebar:
     eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
     keywords_text = st.text_area("keywords (comma-separated)", value="")
     excludeParking = st.checkbox("excludeParking", value=False)
+    section_choice = st.radio("Section", options=["RESERVED", "GA"], index=0, horizontal=True)
     run = st.button("Search")
 
 params = {}
@@ -309,11 +310,30 @@ if st.session_state['rows_df'] is not None:
         selected_full = st.session_state['rows_df'][st.session_state['rows_df']['select']]
         st.caption(f"Selected rows: {len(selected_full)} of {len(st.session_state['rows_df'])}")
         if not selected_full.empty:
-            csv_bytes = selected_full.drop(columns=['select']).to_csv(index=False).encode('utf-8')
+            _col = _find_col_case_insensitive(selected_full, _DEF_STUBHUB_COL)
+            if _col is not None:
+                sh_series = pd.to_numeric(selected_full[_col], errors='coerce')
+                sh_series = sh_series.astype('Int64')
+            else:
+                sh_series = pd.Series([pd.NA] * len(selected_full), index=selected_full.index, dtype='Int64')
+            export_df = pd.DataFrame({
+                'DeliveryType': ['pdf'] * len(selected_full),
+                'TicketCount': [''] * len(selected_full),
+                'InHandAt': [''] * len(selected_full),
+                'Section': [section_choice] * len(selected_full),
+                'ROW': ['GA'] * len(selected_full),
+                'StubhubEventId': sh_series,
+                'UnitCost': [0] * len(selected_full),
+                'FaceValue': [''] * len(selected_full),
+                'AutoBroadcast': [True] * len(selected_full),
+                'SellerOwn': [False] * len(selected_full),
+                'ListingNotes': [''] * len(selected_full),
+            })
+            csv_bytes = export_df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label='Download selected as CSV',
+                label='Download export CSV',
                 data=csv_bytes,
-                file_name='selected_rows.csv',
+                file_name='export.csv',
                 mime='text/csv'
             )
 

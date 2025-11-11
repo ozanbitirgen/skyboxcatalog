@@ -386,49 +386,27 @@ if st.session_state['rows_df'] is not None:
         st.caption(f"Selected rows: {len(selected_full)} of {len(st.session_state['rows_df'])}")
         if not selected_full.empty:
             _col = _find_col_case_insensitive(selected_full, _DEF_STUBHUB_COL)
-            if _col is not None:
-                sh_series = pd.to_numeric(selected_full[_col], errors='coerce')
-                sh_series = sh_series.astype('Int64')
-            else:
-                sh_series = pd.Series([pd.NA] * len(selected_full), index=selected_full.index, dtype='Int64')
-            # Use current session section value (from history or default)
-            current_section = st.session_state.get('export_section', 'RESERVED')
-            export_df = pd.DataFrame({
-                'DeliveryType': ['pdf'] * len(selected_full),
-                'TicketCount': [''] * len(selected_full),
-                'InHandAt': [''] * len(selected_full),
-                'Section': [current_section] * len(selected_full),
-                'ROW': ['GA'] * len(selected_full),
-                'StubhubEventId': sh_series,
-                'UnitCost': [st.session_state.get('unit_cost', 0)] * len(selected_full),
-                'FaceValue': [''] * len(selected_full),
-                'AutoBroadcast': [True] * len(selected_full),
-                'SellerOwn': [False] * len(selected_full),
-                'ListingNotes': [''] * len(selected_full),
-            })
-            # Add section toggle above the download button
-            current_section = st.radio(
-                "Choose Section",
-                options=["RESERVED", "GA"],
-                index=(0 if st.session_state.get('export_section', 'RESERVED') == 'RESERVED' else 1),
-                horizontal=True,
-                key=f"main_section_toggle"
-            )
 
-            # Update session state if section changes
-            if current_section != st.session_state.get('export_section'):
-                st.session_state['export_section'] = current_section
-                # Update the section in the export DataFrame
-                export_df['Section'] = [current_section] * len(export_df)
-
-            csv_bytes = export_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label='Download export CSV',
-                data=csv_bytes,
-                file_name='export.csv',
-                mime='text/csv'
-            )
-
+export_df = pd.DataFrame({
+'DeliveryType': ['pdf'] * len(selected_full),
+'TicketCount': [''] * len(selected_full),
+'InHandAt': [''] * len(selected_full),
+'Section': [current_section] * len(selected_full),
+'ROW': ['GA'] * len(selected_full),
+'StubhubEventId': sh_series,
+'UnitCost': [current_unit_cost] * len(selected_full),
+'FaceValue': [''] * len(selected_full),
+'AutoBroadcast': [True] * len(selected_full),
+'SellerOwn': [False] * len(selected_full),
+'ListingNotes': [''] * len(selected_full),
+})
+csv_bytes = export_df.to_csv(index=False).encode('utf-8')
+st.download_button(
+label='Download export CSV',
+data=csv_bytes,
+file_name='export.csv',
+mime='text/csv'
+)
 
 st.subheader("Search history")
 _hist = _load_history()
@@ -441,28 +419,6 @@ else:
         with st.expander(title, expanded=False):
             st.text("Parameters:")
             st.code(json.dumps(entry.get('params', {}), ensure_ascii=False, indent=2))
-            # Per-entry Section toggle and export update
-            saved_section = (entry.get('params', {}) or {}).get('_exportSection', 'RESERVED')
-            sec_key = f"hist_section_{entry.get('id')}"
-            new_section = st.radio(
-                "Choose Section",
-                options=["RESERVED", "GA"],
-                index=(0 if saved_section == 'RESERVED' else 1),
-                horizontal=True,
-                key=sec_key,
-            )
-            if new_section != saved_section:
-                _update_entry_section(entry.get('id'), new_section)
-
-                # Update the export file with the new section
-                export_csv_path = entry.get('export_csv_path')
-                if export_csv_path and os.path.exists(export_csv_path):
-                    try:
-                        export_df = pd.read_csv(export_csv_path)
-                        export_df['Section'] = new_section
-                        export_df.to_csv(export_csv_path, index=False)
-                    except Exception as e:
-                        st.error(f"Error updating export file: {e}")
             c1, c2, c3 = st.columns([1,1,2])
             with c1:
                 st.button("Load", key=f"load_{entry.get('id')}", on_click=_queue_load, args=(entry.get('id'),))
@@ -470,35 +426,66 @@ else:
                 st.button("Delete", key=f"del_{entry.get('id')}", on_click=_queue_delete, args=(entry.get('id'),))
             with c3:
                 st.write(name)
-                # Unit Cost input for this history entry
-                unit_cost_key = f"unit_cost_{entry.get('id')}"
-                if unit_cost_key not in st.session_state:
-                    st.session_state[unit_cost_key] = st.session_state.get('unit_cost', 800.0)
-                
-                st.markdown("**Unit Cost (USD):**")
-                unit_cost = st.number_input(
-                    "",
-                    min_value=0.0,
-                    step=10.0,
-                    value=float(st.session_state[unit_cost_key]),
-                    key=f"unit_cost_input_{entry.get('id')}",
-                    label_visibility="collapsed"
-                )
-                st.session_state[unit_cost_key] = float(unit_cost)
-                st.session_state['unit_cost'] = float(unit_cost)  # Update global unit cost
+            with st.form(key=f"export_settings_{entry.get('id')}"):
+                col1, col2 = st.columns(2)
 
-                # Single download button for export format
-                export_csv_path = entry.get('export_csv_path', '')
-                if os.path.exists(export_csv_path):
-                    with open(export_csv_path, 'rb') as f:
-                        st.download_button(
-                            label='Download CSV',
-                            data=f.read(),
-                            file_name=os.path.basename(export_csv_path),
-                            mime='text/csv',
-                            key=f"dl_export_{entry.get('id')}",
-                            use_container_width=True
-                        )
+                # Section selection
+                with col1:
+                    saved_section = (entry.get('params', {}) or {}).get('_exportSection', 'RESERVED')
+                    new_section = st.radio(
+                        "Section",
+                        options=["RESERVED", "GA"],
+                        index=(0 if saved_section == 'RESERVED' else 1),
+                        horizontal=True,
+                        key=f"section_{entry.get('id')}"
+                    )
+
+                # Unit cost input
+                with col2:
+                    unit_cost_key = f"unit_cost_{entry.get('id')}"
+                    if unit_cost_key not in st.session_state:
+                        st.session_state[unit_cost_key] = st.session_state.get('unit_cost', 800.0)
+
+unit_cost = st.number_input(
+"Unit Cost (USD)",
+min_value=0.0,
+step=10.0,
+value=float(st.session_state[unit_cost_key]),
+key=f"unit_cost_input_{entry.get('id')}"
+)
+st.session_state[unit_cost_key] = float(unit_cost)
+st.session_state['unit_cost'] = float(unit_cost)
+
+# Update button
+if st.form_submit_button("Update Export Settings"):
+    # Update section in params
+    _update_entry_section(entry.get('id'), new_section)
+
+    # Update the export file with new settings
+    export_csv_path = entry.get('export_csv_path')
+    if export_csv_path and os.path.exists(export_csv_path):
+        try:
+            export_df = pd.read_csv(export_csv_path)
+            export_df['Section'] = new_section
+            export_df['UnitCost'] = float(unit_cost)
+            export_df.to_csv(export_csv_path, index=False)
+            st.success("Export settings updated!")
+        except Exception as e:
+            st.error(f"Error updating export file: {e}")
+st.error(f"Error updating export file: {e}")
+
+# Single download button for export format
+export_csv_path = entry.get('export_csv_path', '')
+if os.path.exists(export_csv_path):
+    with open(export_csv_path, 'rb') as f:
+        st.download_button(
+            label='Download CSV',
+            data=f.read(),
+            file_name=os.path.basename(export_csv_path),
+            mime='text/csv',
+            key=f"dl_export_{entry.get('id')}",
+            use_container_width=True
+        )
 
 if run:
     try:

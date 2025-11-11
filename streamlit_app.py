@@ -70,99 +70,60 @@ def _persist_history(items):
 
 def _save_search(params, df, raw):
     _ensure_history_dir()
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    entry_id = f"{int(datetime.datetime.now().timestamp())}_{ts}"
-    # Build filename as: eventDate - event (fallback to keywords or 'search')
-    date_label = params.get('eventDateFrom') or params.get('eventDateTo') or datetime.datetime.now().strftime("%Y-%m-%d")
-    evt = params.get('event')
-    kw = params.get('keywords')
-    if isinstance(evt, str) and evt.strip():
-        event_label = evt.strip()
-    elif isinstance(kw, list) and kw:
-        event_label = " ".join(str(x) for x in kw[:5])  # limit to first 5 keywords
-    else:
-        event_label = "search"
-    # Sanitize components for filesystem safety, allow letters, digits, space, dash, underscore
-    def _clean(s: str) -> str:
-        s = s.replace("/", "-").replace("\\", "-")
-        return "".join(c for c in s if c.isalnum() or c in (" ", "-", "_"))
-    date_label = _clean(str(date_label)).strip() or datetime.datetime.now().strftime("%Y-%m-%d")
-    event_label = _clean(str(event_label)).strip() or "search"
-    # Trim overly long event labels
-    event_label = event_label[:60]
-    # Build keywords label from params['keywords'] if present, else literal 'keywords'
-    kw_list = kw if isinstance(kw, list) else []
-    if kw_list:
-        kw_label = _clean(" ".join(str(x) for x in kw_list[:5])).strip()
-        kw_label = kw_label[:60] or "keywords"
-    else:
-        kw_label = "keywords"
-    csv_name = f"{date_label} - {event_label} - {kw_label}.csv"
-    json_name = f"{date_label} - {event_label} - {kw_label}.json"
-    csv_path = os.path.join(HISTORY_DIR, csv_name)
-    json_path = os.path.join(HISTORY_DIR, json_name)
-    
-    # Calculate InHandAt as 1 day before the event date
-    date_col = _find_col_case_insensitive(df, 'date')
-    in_hand_dates = []
-    if date_col and date_col in df.columns:
-        for date_str in df[date_col]:
-            try:
-                event_date = pd.to_datetime(date_str)
-                in_hand_date = (event_date - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-                in_hand_dates.append(in_hand_date)
-            except:
-                in_hand_dates.append('')
-    else:
-        in_hand_dates = [''] * len(df)
-    
-    # Create export format DataFrame
-    export_df = pd.DataFrame({
-        'DeliveryType': ['pdf'] * len(df),
-        'TicketCount': [4] * len(df),
-        'InHandAt': in_hand_dates,
-        'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
-        'ROW': ['GA'] * len(df),
-        'StubhubEventId': df[_find_col_case_insensitive(df, _DEF_STUBHUB_COL)] if _find_col_case_insensitive(df, _DEF_STUBHUB_COL) in df.columns else [0] * len(df),
-        'UnitCost': [st.session_state.get('unit_cost', 800)] * len(df),
-        'FaceValue': [''] * len(df),
-        'AutoBroadcast': [True] * len(df),
-        'SellerOwn': [False] * len(df),
-        'ListingNotes': [''] * len(df),
-    })
-    
-    # Save the original search results
     try:
-        df.to_csv(csv_path, index=False)
-    except Exception:
-        df.reset_index(drop=True).to_csv(csv_path, index=False)
-    
-    # Save the export format as a separate file
-    export_csv_path = os.path.join(HISTORY_DIR, f"export_{csv_name}")
-    try:
-        export_df.to_csv(export_csv_path, index=False)
-    except Exception:
-        export_df.reset_index(drop=True).to_csv(export_csv_path, index=False)
-    
-    try:
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(raw, f, ensure_ascii=False)
-    except Exception:
-        pass
+        # Create timestamp and unique ID
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry_id = f"{int(datetime.datetime.now().timestamp())}"
         
-    items = _load_history()
-    entry = {
-        "id": entry_id,
-        "timestamp": ts,
-        "row_count": int(len(df)),
-        "params": params,
-        "csv_path": csv_path,
-        "export_csv_path": export_csv_path,  # Add path to export format CSV
-        "json_path": json_path,
-    }
-    items.append(entry)
-    _persist_history(items)
-    return entry
+        # Create filenames
+        csv_filename = f"{entry_id}.csv"
+        export_csv_filename = f"{entry_id}_export.csv"
+        json_filename = f"{entry_id}.json"
+        
+        csv_path = os.path.join(HISTORY_DIR, csv_filename)
+        export_csv_path = os.path.join(HISTORY_DIR, export_csv_filename)
+        json_path = os.path.join(HISTORY_DIR, json_filename)
+        
+        # Save the main CSV
+        df.to_csv(csv_path, index=False)
+        
+        # Save the export CSV with additional columns
+        export_df = df.copy()
+        if 'Section' not in export_df.columns:
+            export_df['Section'] = params.get('_exportSection', 'RESERVED')
+        if 'UnitCost' not in export_df.columns:
+            export_df['UnitCost'] = float(st.session_state.get('unit_cost', 800.0))
+        export_df.to_csv(export_csv_path, index=False)
+        
+        # Save the raw data JSON
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(raw, f, ensure_ascii=False, indent=2)
+        
+        # Create history entry
+        entry = {
+            "id": entry_id,
+            "timestamp": ts,
+            "row_count": raw.get("rows_count", 0),
+            "params": params,
+            "csv_path": csv_path,
+            "export_csv_path": export_csv_path,
+            "json_path": json_path,
+        }
+        
+        # Load existing history and add new entry
+        items = _load_history()
+        items.append(entry)
+        
+        # Save updated history
+        with open(HISTORY_INDEX, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+        
+        return entry
+        
+    except Exception as e:
+        print(f"Error saving search: {e}")
+        st.error(f"Error saving search: {e}")
+        return None
 
 def _delete_search(entry_id):
     items = _load_history()
@@ -471,37 +432,38 @@ with st.form(key="export_settings_form"):
 st.subheader("Search History")
 _hist = _load_history()
 if not _hist:
-    st.caption("No history yet")
+    st.caption("No search history yet. Perform a search to save it here.")
 else:
-    for idx, entry in enumerate(reversed(_hist)):
-        name = os.path.splitext(os.path.basename(entry.get('csv_path', '')))[0] or entry.get('timestamp', '')
-        title = f"{name} - rows: {entry.get('row_count', 0)}"
+    for entry in reversed(_hist):
+        # Create a more descriptive title
+        event_name = entry.get('params', {}).get('event', 'Unnamed Event')
+        date_str = entry.get('timestamp', 'Unknown date')
+        row_count = entry.get('row_count', 0)
         
-        with st.expander(title, expanded=False):
-            st.text("Parameters:")
-            st.code(json.dumps(entry.get('params', {}), ensure_ascii=False, indent=2))
+        with st.expander(f"{date_str} - {event_name} ({row_count} rows)", expanded=False):
+            st.write(f"**Search Parameters:**")
+            st.json(entry.get('params', {}))
             
-            # Action buttons in a row
             col1, col2, col3 = st.columns([1, 1, 2])
             
             with col1:
-                st.button("Load", key=f"load_{entry.get('id')}", 
-                         on_click=_queue_load, args=(entry.get('id'),))
+                if st.button("🔍 Load", key=f"load_{entry.get('id')}"):
+                    _queue_load(entry.get('id'))
             
             with col2:
-                st.button("Delete", key=f"del_{entry.get('id')}", 
-                         on_click=_queue_delete, args=(entry.get('id'),))
+                if st.button("🗑️ Delete", key=f"del_{entry.get('id')}"):
+                    _queue_delete(entry.get('id'))
             
-            # Download button for this entry
-            export_csv_path = entry.get('export_csv_path', '')
-            if os.path.exists(export_csv_path):
-                with open(export_csv_path, 'rb') as f:
+            # Download button
+            export_path = entry.get('export_csv_path')
+            if export_path and os.path.exists(export_path):
+                with open(export_path, 'rb') as f:
                     st.download_button(
-                        label='Download CSV',
-                        data=f.read(),
-                        file_name=os.path.basename(export_csv_path),
+                        "💾 Download CSV",
+                        f,
+                        file_name=os.path.basename(export_path),
                         mime='text/csv',
-                        key=f"dl_export_{entry.get('id')}",
+                        key=f"dl_{entry.get('id')}",
                         use_container_width=True
                     )
 
@@ -600,7 +562,7 @@ if run:
             try:
                 params_to_save = dict(params)
                 params_to_save["_exportSection"] = st.session_state.get('export_section', 'RESERVED')
-                _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(st.session_state.all_rows)})
+                _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(all_rows)})
             except Exception:
                 pass
             st.rerun()

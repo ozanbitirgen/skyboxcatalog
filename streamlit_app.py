@@ -475,104 +475,79 @@ if 'selected_entries' not in st.session_state:
 
 st.subheader("Search History")
 _hist = _load_history()
-            status = st.empty()
-            page = 1
-            last_url = None
-            while True:
-                status.write(f"Fetching page {page}...")
-                q = dict(params)
-                q['pageNumber'] = page
-                q['limit'] = DEFAULT_LIMIT
-                resp = requests.get(url, headers=HEADERS, params=q, verify=False, timeout=30)
-                last_url = resp.url
-                if resp.status_code != 200:
-                    st.error(f"Request failed on page {page}: {resp.status_code}")
-                    break
-                if "application/json" not in resp.headers.get("Content-Type", ""):
-                    st.warning("Non-JSON response received")
-                    break
-                data = resp.json()
-                rows = data.get("rows") if isinstance(data, dict) else None
-                if not rows:
-                    break
-                if isinstance(rows, list):
-                    all_rows.extend(rows)
-                page += 1
-            status.empty()
+status = st.empty()
 
-        if last_url:
-            st.caption(last_url)
-        if all_rows:
-            df = pd.DataFrame(all_rows)
+if last_url:
+    st.caption(last_url)
+if all_rows:
+    df = pd.DataFrame(all_rows)
             
-            # Filter out past events (only keep events from today forward)
-            date_col = _find_col_case_insensitive(df, 'date')
-            if date_col and date_col in df.columns:
+    # Filter out past events (only keep events from today forward)
+    date_col = _find_col_case_insensitive(df, 'date')
+    if date_col and date_col in df.columns:
+        try:
+            # Convert date strings to datetime for comparison
+            today = pd.Timestamp.now().normalize()  # Get today's date at midnight
+            df['_date_parsed'] = pd.to_datetime(df[date_col], errors='coerce')
+            # Keep only rows where date is today or in the future
+            df = df[df['_date_parsed'].notna() & (df['_date_parsed'] >= today)].copy()
+            df = df.drop(columns=['_date_parsed'])  # Clean up temporary column
+        except Exception as e:
+            st.warning(f"Could not filter by date: {str(e)}")
+            
+    # Normalize nested fields to names for display/save
+    for _c in ['venue', 'performer']:
+        if _c in df.columns:
+            def _extract_name(x):
                 try:
-                    # Convert date strings to datetime for comparison
-                    today = pd.Timestamp.now().normalize()  # Get today's date at midnight
-                    df['_date_parsed'] = pd.to_datetime(df[date_col], errors='coerce')
-                    # Keep only rows where date is today or in the future
-                    df = df[df['_date_parsed'].notna() & (df['_date_parsed'] >= today)].copy()
-                    df = df.drop(columns=['_date_parsed'])  # Clean up temporary column
-                except Exception as e:
-                    st.warning(f"Could not filter by date: {str(e)}")
-            
-            # Normalize nested fields to names for display/save
-            for _c in ['venue', 'performer']:
-                if _c in df.columns:
-                    def _extract_name(x):
-                        try:
-                            if isinstance(x, str) and (x.strip().startswith('{') or x.strip().startswith('[')):
-                                obj = json.loads(x)
-                            else:
-                                obj = x
-                            if isinstance(obj, dict) and 'name' in obj:
-                                return obj.get('name')
-                            if isinstance(obj, list) and obj and isinstance(obj[0], dict) and 'name' in obj[0]:
-                                return obj[0].get('name')
-                        except Exception:
-                            return x
-                        return x
-                    df[_c] = df[_c].apply(_extract_name)
-            # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
-            _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
-            if _col is not None:
-                _s = pd.to_numeric(df[_col], errors='coerce')
-                df = df[_s.notna() & (_s != 0)].copy()
-            # Now reduce to allowed columns for display/save
-            allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
-            if allowed_cols:
-                df = df[allowed_cols].copy()
-            if 'select' not in df.columns:
-                df.insert(0, 'select', False)
-            # Set a stable unique key for reliable row editing
-            key_col = None
-            for cand in ['eventId', 'id', 'event_id', 'eventID']:
-                if cand in df.columns:
-                    key_col = cand
-                    break
-            if key_col is None:
-                if 'row_id' not in df.columns:
-                    df.insert(1, 'row_id', range(1, len(df) + 1))
-                key_col = 'row_id'
-            # Preserve key both as a column and as index for readability; use column for alignment
-            df.set_index(key_col, drop=False, inplace=True)
-            df.index.name = 'row_idx'
-            # Update session state so data persists across reruns
-            st.session_state['rows_df'] = df
-            st.session_state['raw_data'] = {"rows_count": len(all_rows)}
-            st.session_state['key_col_name'] = key_col
-            try:
-                params_to_save = dict(params)
-                params_to_save["_exportSection"] = st.session_state.get('export_section', 'RESERVED')
-                _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(all_rows)})
-            except Exception:
-                pass
-            st.rerun()
-        else:
-            st.session_state['rows_df'] = None
-            st.session_state['raw_data'] = None
-            st.rerun()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error: {e}")
+                    if isinstance(x, str) and (x.strip().startswith('{') or x.strip().startswith('[')):
+                        obj = json.loads(x)
+                    else:
+                        obj = x
+                    if isinstance(obj, dict) and 'name' in obj:
+                        return obj.get('name')
+                    if isinstance(obj, list) and obj and isinstance(obj[0], dict) and 'name' in obj[0]:
+                        return obj[0].get('name')
+                except Exception:
+                    return x
+                return x
+            df[_c] = df[_c].apply(_extract_name)
+    # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
+    _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
+    if _col is not None:
+        _s = pd.to_numeric(df[_col], errors='coerce')
+        df = df[_s.notna() & (_s != 0)].copy()
+    # Now reduce to allowed columns for display/save
+    allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
+    if allowed_cols:
+        df = df[allowed_cols].copy()
+    if 'select' not in df.columns:
+        df.insert(0, 'select', False)
+    # Set a stable unique key for reliable row editing
+    key_col = None
+    for cand in ['eventId', 'id', 'event_id', 'eventID']:
+        if cand in df.columns:
+            key_col = cand
+            break
+    if key_col is None:
+        if 'row_id' not in df.columns:
+            df.insert(1, 'row_id', range(1, len(df) + 1))
+        key_col = 'row_id'
+    # Preserve key both as a column and as index for readability; use column for alignment
+    df.set_index(key_col, drop=False, inplace=True)
+    df.index.name = 'row_idx'
+    # Update session state so data persists across reruns
+    st.session_state['rows_df'] = df
+    st.session_state['raw_data'] = {"rows_count": len(all_rows)}
+    st.session_state['key_col_name'] = key_col
+    try:
+        params_to_save = dict(params)
+        params_to_save["_exportSection"] = st.session_state.get('export_section', 'RESERVED')
+        _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(all_rows)})
+    except Exception as e:
+        st.error(f"Error saving search: {e}")
+    st.rerun()
+else:
+    st.session_state['rows_df'] = None
+    st.session_state['raw_data'] = None
+    st.rerun()

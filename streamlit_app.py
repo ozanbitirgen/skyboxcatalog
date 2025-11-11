@@ -125,7 +125,7 @@ def _save_search(params, df, raw):
         'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
         'ROW': ['GA'] * len(df),
         'StubhubEventId': df[_find_col_case_insensitive(df, _DEF_STUBHUB_COL)] if _find_col_case_insensitive(df, _DEF_STUBHUB_COL) in df.columns else [0] * len(df),
-        'UnitCost': [800] * len(df),
+        'UnitCost': [st.session_state.get('unit_cost', 800)] * len(df),
         'FaceValue': [''] * len(df),
         'AutoBroadcast': [True] * len(df),
         'SellerOwn': [False] * len(df),
@@ -272,6 +272,19 @@ with st.sidebar:
     eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
     keywords_text = st.text_area("keywords (comma-separated)", value="")
     excludeParking = st.checkbox("excludeParking", value=False)
+    
+    # Add unit cost input
+    if 'unit_cost' not in st.session_state:
+        st.session_state['unit_cost'] = 800  # Default value
+    unit_cost = st.number_input(
+        "Unit Cost (USD)",
+        min_value=0.0,
+        step=10.0,
+        value=st.session_state['unit_cost'],
+        key='unit_cost_input'
+    )
+    st.session_state['unit_cost'] = unit_cost  # Update session state
+    
     run = st.button("Search")
 
 params = {}
@@ -399,7 +412,7 @@ if st.session_state['rows_df'] is not None:
                 'Section': [current_section] * len(selected_full),
                 'ROW': ['GA'] * len(selected_full),
                 'StubhubEventId': sh_series,
-                'UnitCost': [0] * len(selected_full),
+                'UnitCost': [st.session_state.get('unit_cost', 0)] * len(selected_full),
                 'FaceValue': [''] * len(selected_full),
                 'AutoBroadcast': [True] * len(selected_full),
                 'SellerOwn': [False] * len(selected_full),

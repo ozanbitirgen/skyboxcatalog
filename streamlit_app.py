@@ -275,15 +275,15 @@ with st.sidebar:
     
     # Add unit cost input
     if 'unit_cost' not in st.session_state:
-        st.session_state['unit_cost'] = 800  # Default value
+        st.session_state['unit_cost'] = 800.0  # Default value as float
     unit_cost = st.number_input(
         "Unit Cost (USD)",
         min_value=0.0,
         step=10.0,
-        value=st.session_state['unit_cost'],
+        value=float(st.session_state['unit_cost']),  # Ensure float type
         key='unit_cost_input'
     )
-    st.session_state['unit_cost'] = unit_cost  # Update session state
+    st.session_state['unit_cost'] = float(unit_cost)  # Ensure float type when updating
     
     run = st.button("Search")
 

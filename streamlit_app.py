@@ -101,6 +101,7 @@ def _save_search(params, df, raw):
             'SellerOwn': [False] * len(df),
             'ListingNotes': [''] * len(df),
         })
+        export_df.to_csv(export_csv_path, index=False)
         
         # Save the raw data JSON
         with open(json_path, "w", encoding="utf-8") as f:

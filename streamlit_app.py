@@ -564,7 +564,7 @@ if run:
             try:
                 params_to_save = dict(params)
                 params_to_save["_exportSection"] = st.session_state.get('export_section', 'RESERVED')
-                _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(all_rows)})
+                _save_search(params_to_save, df.drop(columns=['select']), {"rows_count": len(df)})
             except Exception:
                 pass
             st.rerun()

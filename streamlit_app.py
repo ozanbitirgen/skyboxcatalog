@@ -87,11 +87,27 @@ def _save_search(params, df, raw):
         # Save the main CSV
         df.to_csv(csv_path, index=False)
         
+        # Prepare InHandAt dates (1 day before event date)
+        date_col = None
+        for col in df.columns:
+            if str(col).lower() == 'date':
+                date_col = col
+                break
+
+        if date_col and date_col in df.columns:
+            try:
+                in_hand_dates = (pd.to_datetime(df[date_col]) - pd.Timedelta(days=1)).dt.strftime('%Y-%m-%d')
+                in_hand_at = in_hand_dates.tolist()
+            except:
+                in_hand_at = [''] * len(df)
+        else:
+            in_hand_at = [''] * len(df)
+
         # Update the export CSV with the specified columns
         export_df = pd.DataFrame({
             'DeliveryType': ['pdf'] * len(df),
-            'TicketCount': [''] * len(df),
-            'InHandAt': [''] * len(df),
+            'TicketCount': ['4'] * len(df),
+            'InHandAt': in_hand_at,  # Updated to use the calculated dates
             'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
             'ROW': ['GA'] * len(df),
             'StubhubEventId': df[_DEF_STUBHUB_COL] if _DEF_STUBHUB_COL in df.columns else [0] * len(df),

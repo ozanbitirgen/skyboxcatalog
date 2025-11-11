@@ -87,13 +87,20 @@ def _save_search(params, df, raw):
         # Save the main CSV
         df.to_csv(csv_path, index=False)
         
-        # Save the export CSV with additional columns
-        export_df = df.copy()
-        if 'Section' not in export_df.columns:
-            export_df['Section'] = params.get('_exportSection', 'RESERVED')
-        if 'UnitCost' not in export_df.columns:
-            export_df['UnitCost'] = float(st.session_state.get('unit_cost', 800.0))
-        export_df.to_csv(export_csv_path, index=False)
+        # Update the export CSV with the specified columns
+        export_df = pd.DataFrame({
+            'DeliveryType': ['pdf'] * len(df),
+            'TicketCount': [''] * len(df),
+            'InHandAt': [''] * len(df),
+            'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
+            'ROW': ['GA'] * len(df),
+            'StubhubEventId': df[_DEF_STUBHUB_COL] if _DEF_STUBHUB_COL in df.columns else [0] * len(df),
+            'UnitCost': [float(st.session_state.get('unit_cost', 800.0))] * len(df),
+            'FaceValue': [''] * len(df),
+            'AutoBroadcast': [True] * len(df),
+            'SellerOwn': [False] * len(df),
+            'ListingNotes': [''] * len(df),
+        })
         
         # Save the raw data JSON
         with open(json_path, "w", encoding="utf-8") as f:

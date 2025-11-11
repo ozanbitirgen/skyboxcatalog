@@ -477,6 +477,10 @@ st.subheader("Search History")
 _hist = _load_history()
 status = st.empty()
 
+# Initialize variables
+last_url = st.session_state.get('last_url', '')
+all_rows = st.session_state.get('all_rows', [])
+
 if last_url:
     st.caption(last_url)
 if all_rows:

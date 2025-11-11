@@ -469,47 +469,12 @@ with st.form(key="export_settings_form"):
         _persist_history(items)
         st.success("Export settings updated for all entries!")
 
+# Initialize session state for selected entries
+if 'selected_entries' not in st.session_state:
+    st.session_state['selected_entries'] = set()
+
 st.subheader("Search History")
 _hist = _load_history()
-if not _hist:
-    st.caption("No history yet")
-else:
-    for idx, entry in enumerate(reversed(_hist)):
-        name = os.path.splitext(os.path.basename(entry.get('csv_path', '')))[0] or entry.get('timestamp', '')
-        title = f"{name} - rows: {entry.get('row_count', 0)}"
-        
-        with st.expander(title, expanded=False):
-            st.text("Parameters:")
-            st.code(json.dumps(entry.get('params', {}), ensure_ascii=False, indent=2))
-            
-            # Action buttons in a row
-            col1, col2, col3 = st.columns([1, 1, 2])
-            
-            with col1:
-                st.button("Load", key=f"load_{entry.get('id')}", 
-                         on_click=_queue_load, args=(entry.get('id'),))
-            
-            with col2:
-                st.button("Delete", key=f"del_{entry.get('id')}", 
-                         on_click=_queue_delete, args=(entry.get('id'),))
-            
-            # Download button for this entry
-            export_csv_path = entry.get('export_csv_path', '')
-            if os.path.exists(export_csv_path):
-                with open(export_csv_path, 'rb') as f:
-                    st.download_button(
-                        label='Download CSV',
-                        data=f.read(),
-                        file_name=os.path.basename(export_csv_path),
-                        mime='text/csv',
-                        key=f"dl_export_{entry.get('id')}",
-                        use_container_width=True
-                    )
-
-if run:
-    try:
-        all_rows = []
-        with st.spinner("Loading results..."):
             status = st.empty()
             page = 1
             last_url = None

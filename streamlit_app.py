@@ -249,18 +249,26 @@ def _queue_delete(entry_id):
     st.session_state['pending_delete_entry'] = entry_id
 
 def _update_entry_section(entry_id, section):
-    try:
-        items = _load_history()
-        for it in items:
-            if str(it.get("id")) == str(entry_id):
-                params = it.get("params") or {}
-                params["_exportSection"] = section
-                it["params"] = params
-                break
-        _persist_history(items)
-        st.session_state['export_section'] = section
-    except Exception:
-        pass
+    """Update the export section for a history entry"""
+    items = _load_history()
+    for it in items:
+        if str(it.get("id")) == str(entry_id):
+            if 'params' not in it:
+                it['params'] = {}
+            it['params']['_exportSection'] = section
+            
+            # Update the export file with new settings
+            export_csv_path = it.get('export_csv_path')
+            if export_csv_path and os.path.exists(export_csv_path):
+                try:
+                    export_df = pd.read_csv(export_csv_path)
+                    export_df['Section'] = section
+                    export_df['UnitCost'] = float(st.session_state.get('unit_cost', 800.0))
+                    export_df.to_csv(export_csv_path, index=False)
+                except Exception as e:
+                    print(f"Error updating export file {export_csv_path}: {e}")
+            break
+    _persist_history(items)
 
 with st.sidebar:
     st.header("Search Parameters")
@@ -438,6 +446,27 @@ with st.form(key="export_settings_form"):
     # Update button
     if st.form_submit_button("Update All Export Settings"):
         st.session_state['export_section'] = new_section
+        
+        # Update all history entries with the new settings
+        items = _load_history()
+        for entry in items:
+            # Update the entry's section in the history
+            if 'params' not in entry:
+                entry['params'] = {}
+            entry['params']['_exportSection'] = new_section
+            
+            # Update the export file
+            export_csv_path = entry.get('export_csv_path')
+            if export_csv_path and os.path.exists(export_csv_path):
+                try:
+                    export_df = pd.read_csv(export_csv_path)
+                    export_df['Section'] = new_section
+                    export_df['UnitCost'] = float(unit_cost)
+                    export_df.to_csv(export_csv_path, index=False)
+                except Exception as e:
+                    print(f"Error updating export file {export_csv_path}: {e}")
+        
+        _persist_history(items)
         st.success("Export settings updated for all entries!")
 
 st.subheader("Search History")

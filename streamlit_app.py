@@ -99,11 +99,13 @@ def _save_search(params, df, raw):
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(raw, f, ensure_ascii=False, indent=2)
         
+        # Get row count from raw if available, otherwise use DataFrame length
+        row_count = raw.get("rows_count", len(df) if df is not None else 0)
         # Create history entry
         entry = {
             "id": entry_id,
             "timestamp": ts,
-            "row_count": raw.get("rows_count", 0),
+            "row_count": row_count,  # Use the more accurate row count
             "params": params,
             "csv_path": csv_path,
             "export_csv_path": export_csv_path,

@@ -103,11 +103,25 @@ def _save_search(params, df, raw):
     csv_path = os.path.join(HISTORY_DIR, csv_name)
     json_path = os.path.join(HISTORY_DIR, json_name)
     
+    # Calculate InHandAt as 1 day before the event date
+    date_col = _find_col_case_insensitive(df, 'date')
+    in_hand_dates = []
+    if date_col and date_col in df.columns:
+        for date_str in df[date_col]:
+            try:
+                event_date = pd.to_datetime(date_str)
+                in_hand_date = (event_date - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+                in_hand_dates.append(in_hand_date)
+            except:
+                in_hand_dates.append('')
+    else:
+        in_hand_dates = [''] * len(df)
+    
     # Create export format DataFrame
     export_df = pd.DataFrame({
         'DeliveryType': ['pdf'] * len(df),
         'TicketCount': [4] * len(df),
-        'InHandAt': [''] * len(df),
+        'InHandAt': in_hand_dates,
         'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
         'ROW': ['GA'] * len(df),
         'StubhubEventId': df[_find_col_case_insensitive(df, _DEF_STUBHUB_COL)] if _find_col_case_insensitive(df, _DEF_STUBHUB_COL) in df.columns else [0] * len(df),

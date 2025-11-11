@@ -386,27 +386,28 @@ if st.session_state['rows_df'] is not None:
         st.caption(f"Selected rows: {len(selected_full)} of {len(st.session_state['rows_df'])}")
         if not selected_full.empty:
             _col = _find_col_case_insensitive(selected_full, _DEF_STUBHUB_COL)
-
-export_df = pd.DataFrame({
-'DeliveryType': ['pdf'] * len(selected_full),
-'TicketCount': [''] * len(selected_full),
-'InHandAt': [''] * len(selected_full),
-'Section': [current_section] * len(selected_full),
-'ROW': ['GA'] * len(selected_full),
-'StubhubEventId': sh_series,
-'UnitCost': [current_unit_cost] * len(selected_full),
-'FaceValue': [''] * len(selected_full),
-'AutoBroadcast': [True] * len(selected_full),
-'SellerOwn': [False] * len(selected_full),
-'ListingNotes': [''] * len(selected_full),
-})
-csv_bytes = export_df.to_csv(index=False).encode('utf-8')
-st.download_button(
-label='Download export CSV',
-data=csv_bytes,
-file_name='export.csv',
-mime='text/csv'
-)
+            if _col and _col in selected_full.columns:
+                sh_series = selected_full[_col]
+                export_df = pd.DataFrame({
+                    'DeliveryType': ['pdf'] * len(selected_full),
+                    'TicketCount': [''] * len(selected_full),
+                    'InHandAt': [''] * len(selected_full),
+                    'Section': [st.session_state.get('export_section', 'RESERVED')] * len(selected_full),
+                    'ROW': ['GA'] * len(selected_full),
+                    'StubhubEventId': sh_series,
+                    'UnitCost': [st.session_state.get('unit_cost', 800)] * len(selected_full),
+                    'FaceValue': [''] * len(selected_full),
+                    'AutoBroadcast': [True] * len(selected_full),
+                    'SellerOwn': [False] * len(selected_full),
+                    'ListingNotes': [''] * len(selected_full),
+                })
+                csv_bytes = export_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label='Download export CSV',
+                    data=csv_bytes,
+                    file_name='export.csv',
+                    mime='text/csv'
+                )
 
 st.subheader("Search history")
 _hist = _load_history()

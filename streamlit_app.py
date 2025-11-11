@@ -515,6 +515,20 @@ if run:
             st.caption(last_url)
         if all_rows:
             df = pd.DataFrame(all_rows)
+            
+            # Filter out past events (only keep events from today forward)
+            date_col = _find_col_case_insensitive(df, 'date')
+            if date_col and date_col in df.columns:
+                try:
+                    # Convert date strings to datetime for comparison
+                    today = pd.Timestamp.now().normalize()  # Get today's date at midnight
+                    df['_date_parsed'] = pd.to_datetime(df[date_col], errors='coerce')
+                    # Keep only rows where date is today or in the future
+                    df = df[df['_date_parsed'].notna() & (df['_date_parsed'] >= today)].copy()
+                    df = df.drop(columns=['_date_parsed'])  # Clean up temporary column
+                except Exception as e:
+                    st.warning(f"Could not filter by date: {str(e)}")
+            
             # Normalize nested fields to names for display/save
             for _c in ['venue', 'performer']:
                 if _c in df.columns:

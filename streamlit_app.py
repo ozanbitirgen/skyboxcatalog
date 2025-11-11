@@ -474,9 +474,10 @@ else:
                 unit_cost_key = f"unit_cost_{entry.get('id')}"
                 if unit_cost_key not in st.session_state:
                     st.session_state[unit_cost_key] = st.session_state.get('unit_cost', 800.0)
-
+                
+                st.markdown("**Unit Cost (USD):**")
                 unit_cost = st.number_input(
-                    "Unit Cost (USD)",
+                    "",
                     min_value=0.0,
                     step=10.0,
                     value=float(st.session_state[unit_cost_key]),

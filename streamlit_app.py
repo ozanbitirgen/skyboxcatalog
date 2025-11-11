@@ -272,19 +272,7 @@ with st.sidebar:
     eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
     keywords_text = st.text_area("keywords (comma-separated)", value="")
     excludeParking = st.checkbox("excludeParking", value=False)
-    
-    # Add unit cost input
-    if 'unit_cost' not in st.session_state:
-        st.session_state['unit_cost'] = 800.0  # Default value as float
-    unit_cost = st.number_input(
-        "Unit Cost (USD)",
-        min_value=0.0,
-        step=10.0,
-        value=float(st.session_state['unit_cost']),  # Ensure float type
-        key='unit_cost_input'
-    )
-    st.session_state['unit_cost'] = float(unit_cost)  # Ensure float type when updating
-    
+
     run = st.button("Search")
 
 params = {}
@@ -426,13 +414,13 @@ if st.session_state['rows_df'] is not None:
                 horizontal=True,
                 key=f"main_section_toggle"
             )
-            
+
             # Update session state if section changes
             if current_section != st.session_state.get('export_section'):
                 st.session_state['export_section'] = current_section
                 # Update the section in the export DataFrame
                 export_df['Section'] = [current_section] * len(export_df)
-                
+
             csv_bytes = export_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label='Download export CSV',
@@ -465,7 +453,7 @@ else:
             )
             if new_section != saved_section:
                 _update_entry_section(entry.get('id'), new_section)
-                
+
                 # Update the export file with the new section
                 export_csv_path = entry.get('export_csv_path')
                 if export_csv_path and os.path.exists(export_csv_path):
@@ -482,6 +470,22 @@ else:
                 st.button("Delete", key=f"del_{entry.get('id')}", on_click=_queue_delete, args=(entry.get('id'),))
             with c3:
                 st.write(name)
+                # Unit Cost input for this history entry
+                unit_cost_key = f"unit_cost_{entry.get('id')}"
+                if unit_cost_key not in st.session_state:
+                    st.session_state[unit_cost_key] = st.session_state.get('unit_cost', 800.0)
+
+                unit_cost = st.number_input(
+                    "Unit Cost (USD)",
+                    min_value=0.0,
+                    step=10.0,
+                    value=float(st.session_state[unit_cost_key]),
+                    key=f"unit_cost_input_{entry.get('id')}",
+                    label_visibility="collapsed"
+                )
+                st.session_state[unit_cost_key] = float(unit_cost)
+                st.session_state['unit_cost'] = float(unit_cost)  # Update global unit cost
+
                 # Single download button for export format
                 export_csv_path = entry.get('export_csv_path', '')
                 if os.path.exists(export_csv_path):

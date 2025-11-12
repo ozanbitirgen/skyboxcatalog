@@ -465,15 +465,6 @@ _hist = _load_history()
 if not _hist:
     st.caption("No search history yet. Perform a search to save it here.")
 else:
-    # Add select all/none buttons
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("Select All"):
-            st.session_state.selected_entries = {entry['id'] for entry in _hist}
-    with col2:
-        if st.button("Clear Selection"):
-            st.session_state.selected_entries = set()
-    
     for entry in reversed(_hist):
         # Create a more descriptive title
         event_name = entry.get('params', {}).get('event', 'Unnamed Event')

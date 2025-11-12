@@ -455,30 +455,59 @@ with st.form(key="export_settings_form"):
         _persist_history(items)
         st.success("Export settings updated for all entries!")
 
+# Initialize selected_entries in session state if it doesn't exist
+if 'selected_entries' not in st.session_state:
+    st.session_state.selected_entries = set()
+
 st.subheader("Search History")
 _hist = _load_history()
+
 if not _hist:
     st.caption("No search history yet. Perform a search to save it here.")
 else:
+    # Add select all/none buttons
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("Select All"):
+            st.session_state.selected_entries = {entry['id'] for entry in _hist}
+    with col2:
+        if st.button("Clear Selection"):
+            st.session_state.selected_entries = set()
+    
     for entry in reversed(_hist):
         # Create a more descriptive title
         event_name = entry.get('params', {}).get('event', 'Unnamed Event')
         date_str = entry.get('timestamp', 'Unknown date')
         row_count = entry.get('row_count', 0)
+        entry_id = entry.get('id')
         
-        with st.expander(f"{date_str} - {event_name} ({row_count} rows)", expanded=False):
+        # Create a checkbox for selection
+        is_checked = entry_id in st.session_state.selected_entries
+        if st.checkbox(f"{date_str} - {event_name} ({row_count} rows)", 
+                      value=is_checked,
+                      key=f"select_{entry_id}",
+                      on_change=lambda eid=entry_id, checked=is_checked: (
+                          st.session_state.selected_entries.add(eid) 
+                          if checked and eid not in st.session_state.selected_entries 
+                          else st.session_state.selected_entries.discard(eid)
+                      ) if checked else None):
+            st.session_state.selected_entries.add(entry_id)
+        else:
+            st.session_state.selected_entries.discard(entry_id) if entry_id in st.session_state.selected_entries else None
+        
+        with st.expander("Details", expanded=False):
             st.write(f"**Search Parameters:**")
             st.json(entry.get('params', {}))
             
             col1, col2, col3 = st.columns([1, 1, 2])
             
             with col1:
-                if st.button("🔍 Load", key=f"load_{entry.get('id')}"):
-                    _queue_load(entry.get('id'))
+                if st.button("🔍 Load", key=f"load_{entry_id}"):
+                    _queue_load(entry_id)
             
             with col2:
-                if st.button("🗑️ Delete", key=f"del_{entry.get('id')}"):
-                    _queue_delete(entry.get('id'))
+                if st.button("🗑️ Delete", key=f"del_{entry_id}"):
+                    _queue_delete(entry_id)
             
             # Download button
             export_path = entry.get('export_csv_path')
@@ -489,9 +518,46 @@ else:
                         f,
                         file_name=os.path.basename(export_path),
                         mime='text/csv',
-                        key=f"dl_{entry.get('id')}",
+                        key=f"dl_{entry_id}",
                         use_container_width=True
                     )
+    
+    # Add export selected button at the bottom
+    if st.session_state.selected_entries:
+        if st.button("📤 Export Selected", use_container_width=True, type="primary"):
+            selected_exports = [e for e in _hist if e.get('id') in st.session_state.selected_entries]
+            if selected_exports:
+                all_dfs = []
+                for entry in selected_exports:
+                    export_path = entry.get('export_csv_path')
+                    if export_path and os.path.exists(export_path):
+                        try:
+                            df = pd.read_csv(export_path)
+                            df['_source_export'] = entry.get('timestamp', '') + ' - ' + entry.get('params', {}).get('event', 'Unnamed Event')
+                            all_dfs.append(df)
+                        except Exception as e:
+                            st.error(f"Error reading {export_path}: {e}")
+                
+                if all_dfs:
+                    combined_df = pd.concat(all_dfs, ignore_index=True)
+                    csv = combined_df.to_csv(index=False).encode('utf-8')
+                    
+                    # Create a timestamp for the filename
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"combined_export_{timestamp}.csv"
+                    
+                    st.download_button(
+                        label="💾 Download Combined CSV",
+                        data=csv,
+                        file_name=filename,
+                        mime='text/csv',
+                        key="download_combined_csv",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("No valid export files found in selected entries.")
+            else:
+                st.warning("No selected entries with valid export files found.")
 
 if run:
     try:

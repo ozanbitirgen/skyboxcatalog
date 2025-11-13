@@ -71,6 +71,10 @@ def _persist_history(items):
 def _save_search(params, df, raw):
     _ensure_history_dir()
     try:
+        # Get current export settings from session state
+        export_section = st.session_state.get('export_section', 'RESERVED')
+        unit_cost = float(st.session_state.get('unit_cost', 800.0))
+        
         # Create timestamp and unique ID
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         entry_id = f"{int(datetime.datetime.now().timestamp())}"
@@ -107,11 +111,11 @@ def _save_search(params, df, raw):
         export_df = pd.DataFrame({
             'DeliveryType': ['pdf'] * len(df),
             'TicketCount': ['4'] * len(df),
-            'InHandAt': in_hand_at,  # Updated to use the calculated dates
-            'Section': [params.get('_exportSection', 'RESERVED')] * len(df),
+            'InHandAt': in_hand_at,
+            'Section': [export_section] * len(df),  # Use the current section
             'ROW': ['GA'] * len(df),
             'StubhubEventId': df[_DEF_STUBHUB_COL] if _DEF_STUBHUB_COL in df.columns else [0] * len(df),
-            'UnitCost': [float(st.session_state.get('unit_cost', 800.0))] * len(df),
+            'UnitCost': [unit_cost] * len(df),  # Use the current unit cost
             'FaceValue': [''] * len(df),
             'AutoBroadcast': [True] * len(df),
             'SellerOwn': [False] * len(df),
@@ -123,14 +127,16 @@ def _save_search(params, df, raw):
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(raw, f, ensure_ascii=False, indent=2)
         
-        # Get row count from raw if available, otherwise use DataFrame length
-        row_count = raw.get("rows_count", len(df) if df is not None else 0)
-        # Create history entry
+        # Create history entry with export settings
         entry = {
             "id": entry_id,
             "timestamp": ts,
-            "row_count": row_count,  # Use the more accurate row count
-            "params": params,
+            "row_count": len(df) if df is not None else 0,
+            "params": {
+                **params,
+                "_export_section": export_section,
+                "_unit_cost": unit_cost
+            },
             "csv_path": csv_path,
             "export_csv_path": export_csv_path,
             "json_path": json_path,
@@ -139,10 +145,7 @@ def _save_search(params, df, raw):
         # Load existing history and add new entry
         items = _load_history()
         items.append(entry)
-        
-        # Save updated history
-        with open(HISTORY_INDEX, "w", encoding="utf-8") as f:
-            json.dump(items, f, ensure_ascii=False, indent=2)
+        _persist_history(items)
         
         return entry
         
@@ -170,11 +173,16 @@ def _load_saved_entry(entry_id):
     items = _load_history()
     for it in items:
         if str(it.get("id")) == str(entry_id):
+            # Restore export settings from the saved entry
+            params = it.get("params", {})
+            if '_export_section' in params:
+                st.session_state['export_section'] = params['_export_section']
+            if '_unit_cost' in params:
+                st.session_state['unit_cost'] = float(params['_unit_cost'])
+
             csv_path = it.get("csv_path")
             json_path = it.get("json_path")
-            _sec = it.get("params", {}).get("_exportSection")
-            if isinstance(_sec, str) and _sec in ("RESERVED", "GA"):
-                st.session_state['export_section'] = _sec
+            
             if csv_path and os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
                 # Normalize nested fields to names for display/save

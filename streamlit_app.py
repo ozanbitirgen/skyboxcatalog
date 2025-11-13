@@ -419,7 +419,7 @@ else:
         
         # Create a checkbox for selection
         is_checked = entry_id in st.session_state.selected_entries
-        if st.checkbox(f"{date_str} - {event_name} ({row_count} rows)", 
+        if st.checkbox(f"{date_str} - {event_name} ({row_count} rows)",
                       value=is_checked,
                       key=f"select_{entry_id}",
                       on_change=lambda eid=entry_id, checked=is_checked: (

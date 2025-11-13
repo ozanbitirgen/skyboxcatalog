@@ -151,6 +151,18 @@ def _save_search(params, df, raw):
         st.error(f"Error saving search: {e}")
         return None
 
+def _update_export_settings(entry_id, section, unit_cost):
+    """Update export settings for a specific history entry"""
+    items = _load_history()
+    for item in items:
+        if str(item.get("id")) == str(entry_id):
+            if "params" not in item:
+                item["params"] = {}
+            item["params"]["_exportSection"] = section
+            item["params"]["_unitCost"] = unit_cost
+            break
+    _persist_history(items)
+
 def _delete_search(entry_id):
     items = _load_history()
     keep = []
@@ -233,28 +245,6 @@ def _queue_load(entry_id):
 
 def _queue_delete(entry_id):
     st.session_state['pending_delete_entry'] = entry_id
-
-def _update_entry_section(entry_id, section):
-    """Update the export section for a history entry"""
-    items = _load_history()
-    for it in items:
-        if str(it.get("id")) == str(entry_id):
-            if 'params' not in it:
-                it['params'] = {}
-            it['params']['_exportSection'] = section
-            
-            # Update the export file with new settings
-            export_csv_path = it.get('export_csv_path')
-            if export_csv_path and os.path.exists(export_csv_path):
-                try:
-                    export_df = pd.read_csv(export_csv_path)
-                    export_df['Section'] = section
-                    export_df['UnitCost'] = float(st.session_state.get('unit_cost', 800.0))
-                    export_df.to_csv(export_csv_path, index=False)
-                except Exception as e:
-                    print(f"Error updating export file {export_csv_path}: {e}")
-            break
-    _persist_history(items)
 
 with st.sidebar:
     st.header("Search Parameters")
@@ -405,58 +395,6 @@ if st.session_state['rows_df'] is not None:
                     mime='text/csv'
                 )
 
-st.subheader("Export Settings")
-with st.form(key="export_settings_form"):
-    col1, col2 = st.columns(2)
-    
-    # Section selection
-    with col1:
-        saved_section = st.session_state.get('export_section', 'RESERVED')
-        new_section = st.radio(
-            "Section",
-            options=["RESERVED", "GA"],
-            index=(0 if saved_section == 'RESERVED' else 1),
-            horizontal=True,
-            key="section_global"
-        )
-
-    # Unit cost input
-    with col2:
-        unit_cost = st.number_input(
-            "Unit Cost (USD)",
-            min_value=0.0,
-            step=10.0,
-            value=float(st.session_state.get('unit_cost', 800.0)),
-            key="unit_cost_global"
-        )
-        st.session_state['unit_cost'] = float(unit_cost)
-    
-    # Update button
-    if st.form_submit_button("Update All Export Settings"):
-        st.session_state['export_section'] = new_section
-        
-        # Update all history entries with the new settings
-        items = _load_history()
-        for entry in items:
-            # Update the entry's section in the history
-            if 'params' not in entry:
-                entry['params'] = {}
-            entry['params']['_exportSection'] = new_section
-            
-            # Update the export file
-            export_csv_path = entry.get('export_csv_path')
-            if export_csv_path and os.path.exists(export_csv_path):
-                try:
-                    export_df = pd.read_csv(export_csv_path)
-                    export_df['Section'] = new_section
-                    export_df['UnitCost'] = float(unit_cost)
-                    export_df.to_csv(export_csv_path, index=False)
-                except Exception as e:
-                    print(f"Error updating export file {export_csv_path}: {e}")
-        
-        _persist_history(items)
-        st.success("Export settings updated for all entries!")
-
 # Initialize selected_entries in session state if it doesn't exist
 if 'selected_entries' not in st.session_state:
     st.session_state.selected_entries = set()
@@ -491,6 +429,30 @@ else:
         with st.expander("Details", expanded=False):
             st.write(f"**Search Parameters:**")
             st.json(entry.get('params', {}))
+            
+            # Add export settings editor
+            st.write("**Export Settings**")
+            current_section = entry.get('params', {}).get('_exportSection', 'RESERVED')
+            current_unit_cost = entry.get('params', {}).get('_unitCost', 800.0)
+            
+            with st.form(key=f"export_settings_{entry_id}"):
+                new_section = st.selectbox(
+                    "Section",
+                    options=["RESERVED", "GA"],
+                    index=0 if current_section == "RESERVED" else 1,
+                    key=f"section_{entry_id}"
+                )
+                new_unit_cost = st.number_input(
+                    "Unit Cost",
+                    value=float(current_unit_cost),
+                    step=1.0,
+                    key=f"unit_cost_{entry_id}"
+                )
+                
+                if st.form_submit_button("💾 Update Export Settings", use_container_width=True):
+                    _update_export_settings(entry_id, new_section, new_unit_cost)
+                    st.success("Export settings updated!")
+                    st.rerun()
             
             col1, col2, col3 = st.columns([1, 1, 2])
             

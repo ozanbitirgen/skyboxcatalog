@@ -456,8 +456,16 @@ else:
                 
                 if st.form_submit_button("💾 Update Export Settings", use_container_width=True):
                     _update_export_settings(entry_id, new_section, new_unit_cost)
-                    st.success("Export settings updated!")  # This line shows the success message
+                    st.session_state.success_message = "✅ Export settings updated!"
+                    st.session_state.success_message_id = entry_id
                     st.rerun()
+                
+                # Show success message if it exists for this entry
+                if st.session_state.get('success_message') and st.session_state.get('success_message_id') == entry_id:
+                    st.success(st.session_state.success_message)
+                    # Clear the message after showing it
+                    st.session_state.success_message = None
+                    st.session_state.success_message_id = None
             
             col1, col2, col3 = st.columns([1, 1, 2])
             

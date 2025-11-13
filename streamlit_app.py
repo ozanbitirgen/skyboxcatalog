@@ -140,8 +140,7 @@ def _save_search(params, df, raw):
             "csv_path": csv_path,
             "export_csv_path": export_csv_path,
             "json_path": json_path,
-        }
-        
+        }     
         # Load existing history and add new entry
         items = _load_history()
         items.append(entry)

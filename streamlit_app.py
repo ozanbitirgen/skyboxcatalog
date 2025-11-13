@@ -594,8 +594,10 @@ if run:
                     # Convert date strings to datetime for comparison
                     today = pd.Timestamp.now().normalize()  # Get today's date at midnight
                     df['_date_parsed'] = pd.to_datetime(df[date_col], errors='coerce')
-                    # Keep only rows where date is today or in the future
-                    df = df[df['_date_parsed'].notna() & (df['_date_parsed'] >= today)].copy()
+                    # Keep only rows where date is today or in the future, and exclude year 2099
+                    df = df[df['_date_parsed'].notna() & 
+                          (df['_date_parsed'] >= today) & 
+                          (df['_date_parsed'].dt.year != 2099)].copy()
                     df = df.drop(columns=['_date_parsed'])  # Clean up temporary column
                 except Exception as e:
                     st.warning(f"Could not filter by date: {str(e)}")

@@ -454,10 +454,10 @@ else:
                     key=f"unit_cost_{entry_id}"
                 )
                 
-                if st.form_submit_button("💾 Update Export Settings", use_container_width=True):
-                    _update_export_settings(entry_id, new_section, new_unit_cost)
-                    st.success("Export settings updated!")  # This line shows the success message
-                    st.rerun()
+            if st.form_submit_button("💾 Update Export Settings", use_container_width=True):
+                _update_export_settings(entry_id, new_section, new_unit_cost)
+                st.success("Export settings updated!")  # This line shows the success message
+                st.rerun()
             
             col1, col2, col3 = st.columns([1, 1, 2])
             

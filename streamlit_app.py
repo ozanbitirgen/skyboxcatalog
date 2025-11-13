@@ -182,6 +182,11 @@ def _load_saved_entry(entry_id):
     items = _load_history()
     for it in items:
         if str(it.get("id")) == str(entry_id):
+            # Restore export settings
+            params = it.get('params', {})
+            st.session_state['export_section'] = params.get('_exportSection', 'RESERVED')
+            st.session_state['unit_cost'] = float(params.get('_unitCost', 800))
+            # Rest of the function remains the same...
             csv_path = it.get("csv_path")
             json_path = it.get("json_path")
             _sec = it.get("params", {}).get("_exportSection")
@@ -378,10 +383,10 @@ if st.session_state['rows_df'] is not None:
                     'DeliveryType': ['pdf'] * len(selected_full),
                     'TicketCount': [''] * len(selected_full),
                     'InHandAt': [''] * len(selected_full),
-                    'Section': [st.session_state.get('export_section', 'RESERVED')] * len(selected_full),
+                    'Section': [entry.get('params', {}).get('_exportSection', 'RESERVED')] * len(selected_full),
                     'ROW': ['GA'] * len(selected_full),
                     'StubhubEventId': sh_series,
-                    'UnitCost': [st.session_state.get('unit_cost', 800)] * len(selected_full),
+                    'UnitCost': [float(entry.get('params', {}).get('_unitCost', 800))] * len(selected_full),
                     'FaceValue': [''] * len(selected_full),
                     'AutoBroadcast': [True] * len(selected_full),
                     'SellerOwn': [False] * len(selected_full),
@@ -488,6 +493,16 @@ else:
                     if export_path and os.path.exists(export_path):
                         try:
                             df = pd.read_csv(export_path)
+                            # Use the export settings from the entry
+                            section = entry.get('params', {}).get('_exportSection', 'RESERVED')
+                            unit_cost = float(entry.get('params', {}).get('_unitCost', 800))
+                            
+                            # Update the export settings in the dataframe
+                            if 'Section' in df.columns:
+                                df['Section'] = section
+                            if 'UnitCost' in df.columns:
+                                df['UnitCost'] = unit_cost
+                                
                             df['_source_export'] = entry.get('timestamp', '') + ' - ' + entry.get('params', {}).get('event', 'Unnamed Event')
                             all_dfs.append(df)
                         except Exception as e:
@@ -495,6 +510,7 @@ else:
                 
                 if all_dfs:
                     combined_df = pd.concat(all_dfs, ignore_index=True)
+                    # Rest of the export logic...
                     csv = combined_df.to_csv(index=False).encode('utf-8')
                     
                     # Create a timestamp for the filename

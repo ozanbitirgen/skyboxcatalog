@@ -258,16 +258,17 @@ def _update_entry_section(entry_id, section):
 
 with st.sidebar:
     st.header("Search Parameters")
-    event = st.text_input("event", value="")
-    eventType = st.selectbox("eventType", options=["", "Concert", "Theater", "Sports", "Other"], index=0)
-    venue = st.text_input("venue", value="")
-    city = st.text_input("city", value="")
-    eventDateFrom = st.date_input("eventDateFrom", value=None, format="YYYY-MM-DD")
-    eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
-    keywords_text = st.text_area("keywords (comma-separated)", value="")
-    excludeParking = st.checkbox("excludeParking", value=False)
+    with st.form(key='search_form'):
+        event = st.text_input("event", value="", key="event_input")
+        eventType = st.selectbox("eventType", options=["", "Concert", "Theater", "Sports", "Other"], index=0)
+        venue = st.text_input("venue", value="")
+        city = st.text_input("city", value="")
+        eventDateFrom = st.date_input("eventDateFrom", value=None, format="YYYY-MM-DD")
+        eventDateTo = st.date_input("eventDateTo", value=None, format="YYYY-MM-DD")
+        keywords_text = st.text_area("keywords (comma-separated)", value="")
+        excludeParking = st.checkbox("excludeParking", value=False)
 
-    run = st.button("Search")
+        run = st.form_submit_button("Search")
 
 params = {}
 

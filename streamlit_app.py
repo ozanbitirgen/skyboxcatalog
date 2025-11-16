@@ -182,30 +182,55 @@ def _load_saved_entry(entry_id):
     items = _load_history()
     for it in items:
         if str(it.get("id")) == str(entry_id):
-            # Restore export settings
-            params = it.get('params', {})
-            st.session_state['export_section'] = params.get('_exportSection', 'RESERVED')
-            st.session_state['unit_cost'] = float(params.get('_unitCost', 800))
-            
-            csv_path = os.path.join(HISTORY_DIR, f"{entry_id}.csv")
-            json_path = os.path.join(HISTORY_DIR, f"{entry_id}.json")
-            
-            _sec = it.get("params", {}).get("_exportSection")
-            if isinstance(_sec, str) and _sec in ("RESERVED", "GA"):
-                st.session_state['export_section'] = _sec
+            try:
+                # Restore export settings
+                params = it.get('params', {})
+                st.session_state['export_section'] = params.get('_exportSection', 'RESERVED')
+                st.session_state['unit_cost'] = float(params.get('_unitCost', 800))
                 
-            if os.path.exists(csv_path):
-                try:
+                csv_path = os.path.join(HISTORY_DIR, f"{entry_id}.csv")
+                json_path = os.path.join(HISTORY_DIR, f"{entry_id}.json")
+                
+                if os.path.exists(csv_path):
+                    # Load and process the CSV
                     df = pd.read_csv(csv_path)
-                    # Rest of your data processing...
                     
+                    # Normalize nested fields to names for display/save
+                    for _c in ['venue', 'performer']:
+                        if _c in df.columns:
+                            def _extract_name(x):
+                                try:
+                                    if isinstance(x, str) and (x.strip().startswith('{') or x.strip().startswith('[')):
+                                        obj = json.loads(x)
+                                    else:
+                                        obj = x
+                                    if isinstance(obj, dict) and 'name' in obj:
+                                        return obj.get('name')
+                                    if isinstance(obj, list) and obj and isinstance(obj[0], dict) and 'name' in obj[0]:
+                                        return obj[0].get('name')
+                                except Exception:
+                                    return x
+                                return x
+                            df[_c] = df[_c].apply(_extract_name)
+                    
+                    # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
+                    _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
+                    if _col is not None:
+                        _s = pd.to_numeric(df[_col], errors='coerce')
+                        df = df[_s.notna() & (_s != 0)].copy()
+                    
+                    # Now reduce to allowed columns for display/save
+                    allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
+                    if allowed_cols:
+                        df = df[allowed_cols].copy()
+                    
+                    # Add selection columns
                     if 'select' not in df.columns:
                         df.insert(0, 'select', False)
-                    
-                    # Add 'selected' column for deletion
                     if 'selected' not in df.columns:
                         df.insert(0, 'selected', False)
                     
+                    # Set up the index
                     key_col = None
                     for cand in ['eventId', 'id', 'event_id', 'eventID']:
                         if cand in df.columns:
@@ -219,16 +244,25 @@ def _load_saved_entry(entry_id):
                     df.set_index(key_col, drop=False, inplace=True)
                     df.index.name = 'row_idx'
                     
+                    # Update session state
                     st.session_state['rows_df'] = df
                     st.session_state['raw_data'] = None
                     st.session_state['key_col_name'] = key_col
-                    st.session_state['search_performed'] = True  # Add this flag
+                    st.session_state['search_performed'] = True
+                    
+                    # Load JSON data if it exists
+                    if os.path.exists(json_path):
+                        try:
+                            with open(json_path, "r", encoding="utf-8") as f:
+                                st.session_state['raw_data'] = json.load(f)
+                        except Exception:
+                            st.session_state['raw_data'] = None
                     
                     return True  # Success
                     
-                except Exception as e:
-                    st.error(f"Error loading CSV: {e}")
-                    return False
+            except Exception as e:
+                st.error(f"Error loading saved search: {e}")
+                return False
     return False
 
 def _queue_load(entry_id):
@@ -280,12 +314,11 @@ if 'raw_data' not in st.session_state:
     st.session_state['raw_data'] = None
 
 # Handle queued actions before rendering anything else to avoid multi-clicks
-# In your main code where you handle the load action:
 _pending_load = st.session_state.get('pending_load_entry')
 if _pending_load:
     st.session_state.pop('pending_load_entry', None)
     if _load_saved_entry(_pending_load):
-        st.rerun()  # This will make the UI update with the loaded data
+        st.rerun()  # This forces the UI to update with the loaded data
 _pending_delete = st.session_state.get('pending_delete_entry')
 if _pending_delete:
     st.session_state.pop('pending_delete_entry', None)

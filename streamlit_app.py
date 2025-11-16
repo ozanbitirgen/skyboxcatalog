@@ -356,18 +356,27 @@ if st.session_state['rows_df'] is not None:
             if st.form_submit_button('🗑️ Delete Selected Rows'):
                 # Get the indices of selected rows in the full dataframe
                 selected_indices = edited_df[edited_df['selected']].index
-                # Remove the selected rows from the full dataframe
-                df_full = df_full.drop(selected_indices).reset_index(drop=True)
-                # Remove the 'selected' column if no more rows left
-                if len(df_full) == 0:
-                    df_full = df_full.drop(columns=['selected'], errors='ignore')
-                st.session_state['rows_df'] = df_full
-                st.rerun()
+                if len(selected_indices) > 0:
+                    # Remove the selected rows from the full dataframe
+                    df_full = df_full.drop(selected_indices).reset_index(drop=True)
+                    # Remove the 'selected' column if no more rows left
+                    if len(df_full) == 0:
+                        df_full = df_full.drop(columns=['selected'], errors='ignore')
+                    st.session_state['rows_df'] = df_full
+                    
+                    # Update the history
+                    if 'search_history' in st.session_state:
+                        history = st.session_state.search_history
+                        for idx in reversed(sorted(selected_indices, reverse=True)):
+                            if idx < len(history):
+                                history.pop(idx)
+                        st.session_state.search_history = history
+                        
+                    st.rerun()
         
         with col2:
             # Keep the export functionality
-            if 'select' in df_full.columns:
-                st.form_submit_button('💾 Update Selections', type='primary')
+            pass
     
     # Update the full dataframe with any changes from the editor
     if 'select' in view_df.columns:

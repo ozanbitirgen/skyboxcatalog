@@ -377,30 +377,6 @@ if st.session_state['rows_df'] is not None:
                 df_full.at[idx, 'select'] = row['select']
                 df_full.at[idx, 'selected'] = row['selected']
         st.session_state['rows_df'] = df_full
-    if isinstance(edited_page, pd.DataFrame) and 'select' in edited_page.columns:
-        if key_col_name and key_col_name in edited_page.columns and key_col_name in df_full.columns:
-            left = edited_page[[key_col_name, 'select']].copy()
-            sel_map = dict(zip(left[key_col_name].astype(str), left['select']))
-            df_full_keys = df_full[key_col_name].astype(str)
-            updated = df_full_keys.map(sel_map)
-            df_full.loc[updated.notna(), 'select'] = updated[updated.notna()].astype(bool)
-        else:
-            df_full.loc[edited_page.index, 'select'] = edited_page['select']
-        st.session_state['rows_df'] = df_full
-    elif isinstance(edited_page, dict):
-        # Fallback for Streamlit versions where session value is a dict with deltas
-        for r in edited_page.get('edited_rows', []):
-            idx = r.get('index')
-            val = r.get('value', {}).get('select')
-            if idx is not None and val is not None:
-                try:
-                    df_full.loc[idx, 'select'] = bool(val)
-                except Exception:
-                    # If idx is not in index, try aligning by key column
-                    if key_col_name and key_col_name in df_full.columns:
-                        mask = df_full[key_col_name].astype(str) == str(idx)
-                        df_full.loc[mask, 'select'] = bool(val)
-        st.session_state['rows_df'] = df_full
 
     # Download selected (from the full DataFrame)
     if 'select' in st.session_state['rows_df'].columns:

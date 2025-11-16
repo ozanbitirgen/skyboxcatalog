@@ -295,7 +295,9 @@ def _load_saved_entry(entry_id):
     return False
 
 def _queue_load(entry_id):
-    st.session_state['pending_load_entry'] = entry_id
+    """Load a saved search entry"""
+    if _load_saved_entry(entry_id):
+        st.rerun()
 
 def _queue_delete(entry_id):
     st.session_state['pending_delete_entry'] = entry_id
@@ -342,12 +344,6 @@ if 'rows_df' not in st.session_state:
 if 'raw_data' not in st.session_state:
     st.session_state['raw_data'] = None
 
-# Handle queued actions before rendering anything else to avoid multi-clicks
-_pending_load = st.session_state.get('pending_load_entry')
-if _pending_load:
-    st.session_state.pop('pending_load_entry', None)
-    if _load_saved_entry(_pending_load):
-        st.rerun()  # This forces the UI to update with the loaded data
 _pending_delete = st.session_state.get('pending_delete_entry')
 if _pending_delete:
     st.session_state.pop('pending_delete_entry', None)
@@ -554,8 +550,8 @@ else:
             col1, col2, col3 = st.columns([1, 1, 2])
             
             with col1:
-                if st.button("🔍 Load", key=f"load_{entry_id}"):
-                    _queue_load(entry_id)
+                if st.button("🔍 Load", key=f"load_{entry_id}", on_click=_queue_load, args=(entry_id,)):
+                    pass  # The on_click handler will handle the loading
             
             with col2:
                 if st.button("🗑️ Delete", key=f"del_{entry_id}"):

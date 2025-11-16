@@ -126,15 +126,19 @@ def _save_search(params, df, raw):
         # Get row count from raw if available, otherwise use DataFrame length
         row_count = raw.get("rows_count", len(df) if df is not None else 0)
         # Create history entry
+       # In the _save_search function, after creating the entry:
         entry = {
             "id": entry_id,
             "timestamp": ts,
-            "row_count": row_count,  # Use the more accurate row count
+            "row_count": row_count,
             "params": params,
             "csv_path": csv_path,
             "export_csv_path": export_csv_path,
             "json_path": json_path,
         }
+
+        # Store the current search ID in session state
+        st.session_state['current_search_id'] = entry_id
         
         # Load existing history and add new entry
         items = _load_history()
@@ -180,6 +184,8 @@ def _delete_search(entry_id):
 
 def _load_saved_entry(entry_id):
     items = _load_history()
+    # In the _load_saved_entry function, after loading the entry:
+    st.session_state['current_search_id'] = entry_id
     for it in items:
         if str(it.get("id")) == str(entry_id):
             try:
@@ -378,10 +384,6 @@ if st.session_state['rows_df'] is not None:
                 # Get the indices of selected rows in the full dataframe
                 selected_indices = edited_df[edited_df['selected']].index
                 if len(selected_indices) > 0:
-                    # Get the row IDs of the rows to be deleted
-                    if 'id' in df_full.columns:
-                        deleted_ids = set(df_full.loc[selected_indices, 'id'].astype(str))
-                    
                     # Remove the selected rows from the full dataframe
                     df_full = df_full.drop(selected_indices).reset_index(drop=True)
                     
@@ -392,15 +394,23 @@ if st.session_state['rows_df'] is not None:
                     # Update the session state
                     st.session_state['rows_df'] = df_full
                     
-                    # Update the history file
+                    # Update the history file with the remaining rows
                     try:
                         history = _load_history()
-                        updated_history = []
+                        current_entry_id = str(st.session_state.get('current_search_id'))
+                        
                         for entry in history:
-                            # Only keep entries that aren't in our deleted_ids set
-                            if 'id' not in entry or str(entry['id']) not in deleted_ids:
-                                updated_history.append(entry)
-                        _persist_history(updated_history)
+                            if str(entry.get('id')) == current_entry_id:
+                                # Update the CSV file with remaining rows
+                                csv_path = entry.get('csv_path')
+                                if csv_path and os.path.exists(csv_path):
+                                    df_full.to_csv(csv_path, index=False)
+                                
+                                # Update the row count in the history entry
+                                entry['row_count'] = len(df_full)
+                                break
+                        
+                        _persist_history(history)
                     except Exception as e:
                         st.error(f"Error updating history: {e}")
                     

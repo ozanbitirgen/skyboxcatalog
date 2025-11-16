@@ -306,6 +306,7 @@ if _pending_delete:
     st.rerun()
 
 # Always render current results if present (even when Search button isn't pressed)
+# In the "Always render current results if present" section, replace with:
 if st.session_state['rows_df'] is not None:
     df_full = st.session_state['rows_df'].copy()
     
@@ -313,7 +314,7 @@ if st.session_state['rows_df'] is not None:
     if 'selected' not in df_full.columns:
         df_full['selected'] = False
     
-    # Controls for performance
+    # Controls for pagination and filtering
     col_a, col_b, col_c = st.columns([1,1,2])
     with col_a:
         page_size = st.selectbox('Rows per page', options=[25, 50, 100, 200], index=1, key='page_size')
@@ -326,8 +327,6 @@ if st.session_state['rows_df'] is not None:
     # Filter data based on selection
     if show_selected_only and 'select' in df_full.columns:
         view_df = df_full[df_full['select']].copy()
-        start = 0
-        end = len(view_df)
     else:
         start = (page - 1) * page_size
         end = min(start + page_size, len(df_full))
@@ -376,6 +375,8 @@ if st.session_state['rows_df'] is not None:
         for idx, row in edited_df.iterrows():
             if idx in df_full.index:
                 df_full.at[idx, 'select'] = row['select']
+                df_full.at[idx, 'selected'] = row['selected']
+        st.session_state['rows_df'] = df_full
     if isinstance(edited_page, pd.DataFrame) and 'select' in edited_page.columns:
         if key_col_name and key_col_name in edited_page.columns and key_col_name in df_full.columns:
             left = edited_page[[key_col_name, 'select']].copy()

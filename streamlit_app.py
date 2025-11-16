@@ -182,6 +182,29 @@ def _delete_search(entry_id):
             keep.append(it)
     _persist_history(keep)
 
+def _clear_search_history():
+    """Clear all search history and related files"""
+    try:
+        history = _load_history()
+        # Delete all history files
+        for entry in history:
+            for path_key in ['csv_path', 'export_csv_path', 'json_path']:
+                path = entry.get(path_key)
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+        # Clear the history index
+        _persist_history([])
+        # Clear any selected entries
+        if 'selected_entries' in st.session_state:
+            st.session_state.selected_entries = set()
+        return True
+    except Exception as e:
+        st.error(f"Error clearing search history: {e}")
+        return False
+
 def _load_saved_entry(entry_id):
     items = _load_history()
     # In the _load_saved_entry function, after loading the entry:
@@ -458,7 +481,9 @@ if st.session_state['rows_df'] is not None:
                     file_name='export.csv',
                     mime='text/csv'
                 )
-
+    # Initialize session state for confirmation
+    if 'confirm_clear' not in st.session_state:
+        st.session_state.confirm_clear = False
 # Initialize selected_entries in session state if it doesn't exist
 if 'selected_entries' not in st.session_state:
     st.session_state.selected_entries = set()
@@ -597,6 +622,25 @@ else:
                     st.warning("No valid export files found in selected entries.")
             else:
                 st.warning("No selected entries with valid export files found.")
+
+# Add clear history button at the bottom of the search history section
+if _hist:  # Only show if there's history
+    st.markdown("---")  # Add a divider
+    if st.session_state.get('confirm_clear', False):
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("✅ Confirm Clear All", type="primary", use_container_width=True):
+                if _clear_search_history():
+                    st.success("Search history cleared successfully!")
+                    st.rerun()
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.confirm_clear = False
+                st.rerun()
+    else:
+        if st.button("🗑️ Clear All Search History", type="primary", use_container_width=True):
+            st.session_state.confirm_clear = True
+            st.rerun()
 
 if run:
     try:

@@ -383,10 +383,12 @@ if st.session_state['rows_df'] is not None:
 
     # Then create the data_editor
     with st.form('data_editor_form'):
+        # In the data_editor configuration, update the column_config to hide the 'select' column:
         edited_df = st.data_editor(
             view_df,
             column_config={
-                'selected': st.column_config.CheckboxColumn('Select for Deletion', default=False)
+                'selected': st.column_config.CheckboxColumn('Select for Deletion', default=False),
+                'select': None  # This hides the 'select' column
             },
             disabled=[c for c in view_df.columns if c != 'selected'],
             hide_index=True,

@@ -186,63 +186,49 @@ def _load_saved_entry(entry_id):
             params = it.get('params', {})
             st.session_state['export_section'] = params.get('_exportSection', 'RESERVED')
             st.session_state['unit_cost'] = float(params.get('_unitCost', 800))
-            # Rest of the function remains the same...
-            csv_path = it.get("csv_path")
-            json_path = it.get("json_path")
+            
+            csv_path = os.path.join(HISTORY_DIR, f"{entry_id}.csv")
+            json_path = os.path.join(HISTORY_DIR, f"{entry_id}.json")
+            
             _sec = it.get("params", {}).get("_exportSection")
             if isinstance(_sec, str) and _sec in ("RESERVED", "GA"):
                 st.session_state['export_section'] = _sec
-            if csv_path and os.path.exists(csv_path):
-                df = pd.read_csv(csv_path)
-                # Normalize nested fields to names for display/save
-                for _c in ['venue', 'performer']:
-                    if _c in df.columns:
-                        def _extract_name(x):
-                            try:
-                                if isinstance(x, str) and (x.strip().startswith('{') or x.strip().startswith('[')):
-                                    obj = json.loads(x)
-                                else:
-                                    obj = x
-                                if isinstance(obj, dict) and 'name' in obj:
-                                    return obj.get('name')
-                                if isinstance(obj, list) and obj and isinstance(obj[0], dict) and 'name' in obj[0]:
-                                    return obj[0].get('name')
-                            except Exception:
-                                return x
-                            return x
-                        df[_c] = df[_c].apply(_extract_name)
-                # Keep only numeric and non-zero stubhubEventId; exclude nulls and 0s.
-                _col = _find_col_case_insensitive(df, _DEF_STUBHUB_COL)
-                if _col is not None:
-                    _s = pd.to_numeric(df[_col], errors='coerce')
-                    df = df[_s.notna() & (_s != 0)].copy()
-                # Now reduce to allowed columns for display/save
-                allowed_cols = [c for c in ALLOWED_COLUMNS if c in df.columns]
-                if allowed_cols:
-                    df = df[allowed_cols].copy()
-                if 'select' not in df.columns:
-                    df.insert(0, 'select', False)
-                key_col = None
-                for cand in ['eventId', 'id', 'event_id', 'eventID']:
-                    if cand in df.columns:
-                        key_col = cand
-                        break
-                if key_col is None:
-                    if 'row_id' not in df.columns:
-                        df.insert(1, 'row_id', range(1, len(df) + 1))
-                    key_col = 'row_id'
-                df.set_index(key_col, drop=False, inplace=True)
-                df.index.name = 'row_idx'
-                st.session_state['rows_df'] = df
-                st.session_state['raw_data'] = None
-                st.session_state['key_col_name'] = key_col
-            if json_path and os.path.exists(json_path):
+                
+            if os.path.exists(csv_path):
                 try:
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        st.session_state['raw_data'] = json.load(f)
-                except Exception:
+                    df = pd.read_csv(csv_path)
+                    # Rest of your data processing...
+                    
+                    if 'select' not in df.columns:
+                        df.insert(0, 'select', False)
+                    
+                    # Add 'selected' column for deletion
+                    if 'selected' not in df.columns:
+                        df.insert(0, 'selected', False)
+                    
+                    key_col = None
+                    for cand in ['eventId', 'id', 'event_id', 'eventID']:
+                        if cand in df.columns:
+                            key_col = cand
+                            break
+                    if key_col is None:
+                        if 'row_id' not in df.columns:
+                            df.insert(1, 'row_id', range(1, len(df) + 1))
+                        key_col = 'row_id'
+                    
+                    df.set_index(key_col, drop=False, inplace=True)
+                    df.index.name = 'row_idx'
+                    
+                    st.session_state['rows_df'] = df
                     st.session_state['raw_data'] = None
-            return True
+                    st.session_state['key_col_name'] = key_col
+                    st.session_state['search_performed'] = True  # Add this flag
+                    
+                    return True  # Success
+                    
+                except Exception as e:
+                    st.error(f"Error loading CSV: {e}")
+                    return False
     return False
 
 def _queue_load(entry_id):
@@ -294,11 +280,12 @@ if 'raw_data' not in st.session_state:
     st.session_state['raw_data'] = None
 
 # Handle queued actions before rendering anything else to avoid multi-clicks
+# In your main code where you handle the load action:
 _pending_load = st.session_state.get('pending_load_entry')
 if _pending_load:
     st.session_state.pop('pending_load_entry', None)
     if _load_saved_entry(_pending_load):
-        st.rerun()
+        st.rerun()  # This will make the UI update with the loaded data
 _pending_delete = st.session_state.get('pending_delete_entry')
 if _pending_delete:
     st.session_state.pop('pending_delete_entry', None)
@@ -332,23 +319,23 @@ if st.session_state['rows_df'] is not None:
         end = min(start + page_size, len(df_full))
         view_df = df_full.iloc[start:end].copy()
     
-    # Create a form for the data editor and delete button
+    # Move this before the data_editor
+    column_order = ['selected'] + [c for c in view_df.columns if c != 'selected']
+    view_df = view_df[column_order]
+
+    # Then create the data_editor
     with st.form('data_editor_form'):
-        # Display the data editor with checkboxes for selection and export
         edited_df = st.data_editor(
             view_df,
             column_config={
-                'selected': st.column_config.CheckboxColumn('Select for Deletion', default=False),
-                'select': st.column_config.CheckboxColumn('Select for Export', default=False)
-            } if 'select' in view_df.columns else {
                 'selected': st.column_config.CheckboxColumn('Select for Deletion', default=False)
             },
-            disabled=[c for c in view_df.columns if c not in ['selected', 'select']],
+            disabled=[c for c in view_df.columns if c != 'selected'],
             hide_index=True,
             use_container_width=True,
             height=400,
             key=f'data_editor_{page}_{int(show_selected_only)}'
-        )# In the 'Delete Selected Rows' button click handler, update it to:
+        )
         
         # Add buttons for actions
         col1, col2 = st.columns([1, 1])

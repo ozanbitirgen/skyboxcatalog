@@ -84,6 +84,10 @@ def _save_search(params, df, raw):
         export_csv_path = os.path.join(HISTORY_DIR, export_csv_filename)
         json_path = os.path.join(HISTORY_DIR, json_filename)
         
+        # Filter out unselected rows before saving
+        if '_selected' in df.columns:
+            df = df[df['_selected'] == True].drop(columns=['_selected'])
+        
         # Save the main CSV
         df.to_csv(csv_path, index=False)
         
@@ -309,8 +313,34 @@ if _pending_delete:
 if st.session_state['rows_df'] is not None:
     df_full = st.session_state['rows_df']
 
+    # Add a column for row selection if it doesn't exist
+    if '_selected' not in df_full.columns:
+        df_full['_selected'] = True  # Default all rows to selected
+    
+    # Create a copy of the dataframe for display with checkboxes
+    display_df = df_full.copy()
+    
+    # Add checkboxes for row selection
+    for i in st.session_state.get('selected_rows', range(len(df_full))):
+        if i < len(display_df):
+            display_df.at[i, 'Select'] = st.checkbox(
+                'Keep', 
+                value=bool(display_df.at[i, '_selected']),
+                key=f'row_select_{i}'
+            )
+
     # Controls for performance
-    col_a, col_b, col_c = st.columns([1,1,2])
+    col_a, col_b, col_c, col_d = st.columns([1,1,1,1])
+    
+    # Button to delete selected rows
+    if col_d.button('🗑️ Delete Unselected Rows'):
+        # Get the indices of rows to keep
+        keep_indices = [i for i in range(len(df_full)) if st.session_state.get(f'row_select_{i}', True)]
+        # Update the dataframe
+        df_full = df_full.iloc[keep_indices].reset_index(drop=True)
+        # Update session state
+        st.session_state['rows_df'] = df_full
+        st.rerun()
     with col_a:
         page_size = st.selectbox('Rows per page', options=[25, 50, 100, 200], index=1, key='page_size')
     with col_b:

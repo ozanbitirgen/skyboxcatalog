@@ -403,14 +403,15 @@ if st.session_state['rows_df'] is not None:
             _col = _find_col_case_insensitive(selected_full, _DEF_STUBHUB_COL)
             if _col and _col in selected_full.columns:
                 sh_series = selected_full[_col]
+                # Replace the export_df creation block with this:
                 export_df = pd.DataFrame({
                     'DeliveryType': ['pdf'] * len(selected_full),
                     'TicketCount': [''] * len(selected_full),
                     'InHandAt': [''] * len(selected_full),
-                    'Section': [entry.get('params', {}).get('_exportSection', 'RESERVED')] * len(selected_full),
+                    'Section': [st.session_state.get('export_section', 'RESERVED')] * len(selected_full),
                     'ROW': ['GA'] * len(selected_full),
                     'StubhubEventId': sh_series,
-                    'UnitCost': [float(entry.get('params', {}).get('_unitCost', 800))] * len(selected_full),
+                    'UnitCost': [float(st.session_state.get('unit_cost', 800))] * len(selected_full),
                     'FaceValue': [''] * len(selected_full),
                     'AutoBroadcast': [True] * len(selected_full),
                     'SellerOwn': [False] * len(selected_full),

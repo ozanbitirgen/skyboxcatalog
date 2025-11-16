@@ -348,30 +348,42 @@ if st.session_state['rows_df'] is not None:
             use_container_width=True,
             height=400,
             key=f'data_editor_{page}_{int(show_selected_only)}'
-        )
+        )# In the 'Delete Selected Rows' button click handler, update it to:
         
         # Add buttons for actions
         col1, col2 = st.columns([1, 1])
         with col1:
+            # In the 'Delete Selected Rows' button click handler, update it to:
             if st.form_submit_button('🗑️ Delete Selected Rows'):
                 # Get the indices of selected rows in the full dataframe
                 selected_indices = edited_df[edited_df['selected']].index
                 if len(selected_indices) > 0:
+                    # Get the row IDs of the rows to be deleted
+                    if 'id' in df_full.columns:
+                        deleted_ids = set(df_full.loc[selected_indices, 'id'].astype(str))
+                    
                     # Remove the selected rows from the full dataframe
                     df_full = df_full.drop(selected_indices).reset_index(drop=True)
+                    
                     # Remove the 'selected' column if no more rows left
                     if len(df_full) == 0:
                         df_full = df_full.drop(columns=['selected'], errors='ignore')
+                    
+                    # Update the session state
                     st.session_state['rows_df'] = df_full
                     
-                    # Update the history
-                    if 'search_history' in st.session_state:
-                        history = st.session_state.search_history
-                        for idx in reversed(sorted(selected_indices, reverse=True)):
-                            if idx < len(history):
-                                history.pop(idx)
-                        st.session_state.search_history = history
-                        
+                    # Update the history file
+                    try:
+                        history = _load_history()
+                        updated_history = []
+                        for entry in history:
+                            # Only keep entries that aren't in our deleted_ids set
+                            if 'id' not in entry or str(entry['id']) not in deleted_ids:
+                                updated_history.append(entry)
+                        _persist_history(updated_history)
+                    except Exception as e:
+                        st.error(f"Error updating history: {e}")
+                    
                     st.rerun()
         
         with col2:

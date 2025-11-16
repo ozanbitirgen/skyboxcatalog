@@ -307,8 +307,32 @@ if _pending_delete:
 
 # Always render current results if present (even when Search button isn't pressed)
 if st.session_state['rows_df'] is not None:
-    df_full = st.session_state['rows_df']
-
+    df_full = st.session_state['rows_df'].copy()
+    
+    # Add 'selected' column if it doesn't exist
+    if 'selected' not in df_full.columns:
+        df_full['selected'] = False
+    
+    # Create a form for the data editor and delete button
+    with st.form('data_editor_form'):
+        # Display the data editor with checkboxes for selection
+        edited_df = st.data_editor(
+            df_full,
+            column_config={
+                "selected": st.column_config.CheckboxColumn("Select", default=False),
+            },
+            hide_index=True,
+            use_container_width=True,
+            height=400
+        )
+        
+        # Add a delete button to remove selected rows
+        if st.form_submit_button('🗑️ Delete Selected Rows'):
+            # Filter out selected rows
+            df_full = edited_df[~edited_df['selected']].drop(columns=['selected'])
+            st.session_state['rows_df'] = df_full
+            st.rerun()
+    
     # Controls for performance
     col_a, col_b, col_c = st.columns([1,1,2])
     with col_a:

@@ -313,26 +313,6 @@ if st.session_state['rows_df'] is not None:
     if 'selected' not in df_full.columns:
         df_full['selected'] = False
     
-    # Create a form for the data editor and delete button
-    with st.form('data_editor_form'):
-        # Display the data editor with checkboxes for selection
-        edited_df = st.data_editor(
-            df_full,
-            column_config={
-                "selected": st.column_config.CheckboxColumn("Select", default=False),
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=400
-        )
-        
-        # Add a delete button to remove selected rows
-        if st.form_submit_button('🗑️ Delete Selected Rows'):
-            # Filter out selected rows
-            df_full = edited_df[~edited_df['selected']].drop(columns=['selected'])
-            st.session_state['rows_df'] = df_full
-            st.rerun()
-    
     # Controls for performance
     col_a, col_b, col_c = st.columns([1,1,2])
     with col_a:
@@ -342,34 +322,60 @@ if st.session_state['rows_df'] is not None:
         page = st.number_input('Page', min_value=1, max_value=total_pages, value=1, step=1, key='page_num')
     with col_c:
         show_selected_only = st.checkbox('Show only selected', value=False, key='show_selected_only')
-
+    
+    # Filter data based on selection
     if show_selected_only and 'select' in df_full.columns:
-        view_df = df_full[df_full['select']]
+        view_df = df_full[df_full['select']].copy()
         start = 0
         end = len(view_df)
     else:
         start = (page - 1) * page_size
         end = min(start + page_size, len(df_full))
-        view_df = df_full.iloc[start:end]
-
-    editor_key = f"rows_editor_{page}_{int(show_selected_only)}"
-    edited_page = st.data_editor(
-        view_df.copy(),
-        column_config={
-            'select': st.column_config.CheckboxColumn('select', help='Select rows to export', default=False)
-        } if 'select' in view_df.columns else {},
-        disabled=[c for c in view_df.columns if c != 'select'],
-        column_order=['select'] + [c for c in view_df.columns if c != 'select'],
-        num_rows="fixed",
-        width='stretch',
-        hide_index=True,
-        key=editor_key
-    )
-
-    # Persist only the edited 'select' values back to the full DataFrame
-    df_full = st.session_state['rows_df']
-    key_col_name = st.session_state.get('key_col_name')
-
+        view_df = df_full.iloc[start:end].copy()
+    
+    # Create a form for the data editor and delete button
+    with st.form('data_editor_form'):
+        # Display the data editor with checkboxes for selection and export
+        edited_df = st.data_editor(
+            view_df,
+            column_config={
+                'selected': st.column_config.CheckboxColumn('Select for Deletion', default=False),
+                'select': st.column_config.CheckboxColumn('Select for Export', default=False)
+            } if 'select' in view_df.columns else {
+                'selected': st.column_config.CheckboxColumn('Select for Deletion', default=False)
+            },
+            disabled=[c for c in view_df.columns if c not in ['selected', 'select']],
+            hide_index=True,
+            use_container_width=True,
+            height=400,
+            key=f'data_editor_{page}_{int(show_selected_only)}'
+        )
+        
+        # Add buttons for actions
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.form_submit_button('🗑️ Delete Selected Rows'):
+                # Get the indices of selected rows in the full dataframe
+                selected_indices = edited_df[edited_df['selected']].index
+                # Remove the selected rows from the full dataframe
+                df_full = df_full.drop(selected_indices).reset_index(drop=True)
+                # Remove the 'selected' column if no more rows left
+                if len(df_full) == 0:
+                    df_full = df_full.drop(columns=['selected'], errors='ignore')
+                st.session_state['rows_df'] = df_full
+                st.rerun()
+        
+        with col2:
+            # Keep the export functionality
+            if 'select' in df_full.columns:
+                st.form_submit_button('💾 Update Selections', type='primary')
+    
+    # Update the full dataframe with any changes from the editor
+    if 'select' in view_df.columns:
+        # Update the select column in the full dataframe
+        for idx, row in edited_df.iterrows():
+            if idx in df_full.index:
+                df_full.at[idx, 'select'] = row['select']
     if isinstance(edited_page, pd.DataFrame) and 'select' in edited_page.columns:
         if key_col_name and key_col_name in edited_page.columns and key_col_name in df_full.columns:
             left = edited_page[[key_col_name, 'select']].copy()

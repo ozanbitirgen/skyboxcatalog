@@ -321,13 +321,12 @@ if st.session_state['rows_df'] is not None:
     display_df = df_full.copy()
     
     # Add checkboxes for row selection
-    for i in st.session_state.get('selected_rows', range(len(df_full))):
-        if i < len(display_df):
-            display_df.at[i, 'Select'] = st.checkbox(
-                'Keep', 
-                value=bool(display_df.at[i, '_selected']),
-                key=f'row_select_{i}'
-            )
+    for idx in df_full.index:
+        display_df.at[idx, 'Select'] = st.checkbox(
+            'Keep', 
+            value=bool(df_full.at[idx, '_selected']),
+            key=f'row_select_{idx}'
+        )
 
     # Controls for performance
     col_a, col_b, col_c, col_d = st.columns([1,1,1,1])
@@ -335,9 +334,9 @@ if st.session_state['rows_df'] is not None:
     # Button to delete selected rows
     if col_d.button('🗑️ Delete Unselected Rows'):
         # Get the indices of rows to keep
-        keep_indices = [i for i in range(len(df_full)) if st.session_state.get(f'row_select_{i}', True)]
+        keep_indices = [idx for idx in df_full.index if st.session_state.get(f'row_select_{idx}', True)]
         # Update the dataframe
-        df_full = df_full.iloc[keep_indices].reset_index(drop=True)
+        df_full = df_full.loc[keep_indices].reset_index(drop=True)
         # Update session state
         st.session_state['rows_df'] = df_full
         st.rerun()

@@ -156,7 +156,7 @@ def _save_search(params, df, raw):
         return None
 
 def _update_export_settings(entry_id, section, unit_cost):
-    """Update export settings for a specific history entry"""
+    """Update export settings for a specific history entry and regenerate export CSV"""
     items = _load_history()
     for item in items:
         if str(item.get("id")) == str(entry_id):
@@ -164,8 +164,57 @@ def _update_export_settings(entry_id, section, unit_cost):
                 item["params"] = {}
             item["params"]["_exportSection"] = section
             item["params"]["_unitCost"] = unit_cost
+            
+            # Regenerate the export CSV with the new settings
+            try:
+                csv_path = item.get("csv_path")
+                if csv_path and os.path.exists(csv_path):
+                    df = pd.read_csv(csv_path)
+                    
+                    # Prepare InHandAt dates (1 day before event date)
+                    date_col = None
+                    for col in df.columns:
+                        if str(col).lower() == 'date':
+                            date_col = col
+                            break
+
+                    if date_col and date_col in df.columns:
+                        try:
+                            in_hand_dates = (pd.to_datetime(df[date_col]) - pd.Timedelta(days=1)).dt.strftime('%Y-%m-%d')
+                            in_hand_at = in_hand_dates.tolist()
+                        except:
+                            in_hand_at = [''] * len(df)
+                    else:
+                        in_hand_at = [''] * len(df)
+
+                    # Update the export CSV with the new settings
+                    export_df = pd.DataFrame({
+                        'DeliveryType': ['pdf'] * len(df),
+                        'TicketCount': ['4'] * len(df),
+                        'InHandAt': in_hand_at,
+                        'Section': [section] * len(df),
+                        'ROW': ['GA'] * len(df),
+                        'StubhubEventId': df[_DEF_STUBHUB_COL] if _DEF_STUBHUB_COL in df.columns else [0] * len(df),
+                        'UnitCost': [float(unit_cost)] * len(df),
+                        'FaceValue': [''] * len(df),
+                        'AutoBroadcast': [True] * len(df),
+                        'SellerOwn': [False] * len(df),
+                        'ListingNotes': [''] * len(df),
+                    })
+                    
+                    # Save the updated export CSV
+                    export_csv_path = item.get("export_csv_path")
+                    if export_csv_path:
+                        export_df.to_csv(export_csv_path, index=False)
+                        
+            except Exception as e:
+                st.error(f"Error updating export file: {e}")
+                return False
+                
             break
+            
     _persist_history(items)
+    return True
 
 def _delete_search(entry_id):
     items = _load_history()

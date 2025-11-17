@@ -588,12 +588,12 @@ else:
                             section = entry.get('params', {}).get('_exportSection', 'RESERVED')
                             unit_cost = float(entry.get('params', {}).get('_unitCost', 800))
                             
-                            # Update the export settings in the dataframe
-                            if 'Section' in df.columns:
-                                df['Section'] = section
-                            if 'UnitCost' in df.columns:
-                                df['UnitCost'] = unit_cost
+
+                            # Add or update the export settings in the dataframe
+                            df['Section'] = section
+                            df['UnitCost'] = unit_cost
                                 
+
                             df['_source_export'] = entry.get('timestamp', '') + ' - ' + entry.get('params', {}).get('event', 'Unnamed Event')
                             all_dfs.append(df)
                         except Exception as e:

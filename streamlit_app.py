@@ -155,6 +155,45 @@ def _save_search(params, df, raw):
         st.error(f"Error saving search: {e}")
         return None
 
+def _delete_selected_rows(selected_indices, df_full, current_entry_id):
+    """Delete selected rows from the dataframe and update history"""
+    # Remove the selected rows from the full dataframe
+    df_full = df_full.drop(selected_indices).reset_index(drop=True)
+    
+    # Remove the 'selected' column if no more rows left
+    if len(df_full) == 0:
+        df_full = df_full.drop(columns=['selected'], errors='ignore')
+    
+    # Update the session state
+    st.session_state['rows_df'] = df_full
+    
+    # Update the history file with the remaining rows
+    try:
+        history = _load_history()
+        
+        for entry in history:
+            if str(entry.get('id')) == current_entry_id:
+                # Update the CSV file with remaining rows
+                csv_path = entry.get('csv_path')
+                if csv_path and os.path.exists(csv_path):
+                    # Save the updated CSV
+                    df_full.to_csv(csv_path, index=False)
+                    
+                    # Regenerate the export CSV with the same settings
+                    section = entry.get('params', {}).get('_exportSection', 'RESERVED')
+                    unit_cost = float(entry.get('params', {}).get('_unitCost', 800))
+                    _update_export_settings(entry['id'], section, unit_cost)
+                
+                # Update the row count in the history entry
+                entry['row_count'] = len(df_full)
+                break
+        
+        _persist_history(history)
+        return True
+    except Exception as e:
+        st.error(f"Error updating history: {e}")
+        return False
+
 def _update_export_settings(entry_id, section, unit_cost):
     """Update export settings for a specific history entry and regenerate export CSV"""
     items = _load_history()
@@ -449,42 +488,13 @@ if st.session_state['rows_df'] is not None:
         # Add buttons for actions
         col1, col2 = st.columns([1, 1])
         with col1:
-            # In the 'Delete Selected Rows' button click handler, update it to:
+            # In the 'Delete Selected Rows' button click handler, replace the existing code with:
             if st.form_submit_button('🗑️ Delete Selected Rows'):
                 # Get the indices of selected rows in the full dataframe
                 selected_indices = edited_df[edited_df['selected']].index
                 if len(selected_indices) > 0:
-                    # Remove the selected rows from the full dataframe
-                    df_full = df_full.drop(selected_indices).reset_index(drop=True)
-                    
-                    # Remove the 'selected' column if no more rows left
-                    if len(df_full) == 0:
-                        df_full = df_full.drop(columns=['selected'], errors='ignore')
-                    
-                    # Update the session state
-                    st.session_state['rows_df'] = df_full
-                    
-                    # Update the history file with the remaining rows
-                    try:
-                        history = _load_history()
-                        current_entry_id = str(st.session_state.get('current_search_id'))
-                        
-                        for entry in history:
-                            if str(entry.get('id')) == current_entry_id:
-                                # Update the CSV file with remaining rows
-                                csv_path = entry.get('csv_path')
-                                if csv_path and os.path.exists(csv_path):
-                                    df_full.to_csv(csv_path, index=False)
-                                
-                                # Update the row count in the history entry
-                                entry['row_count'] = len(df_full)
-                                break
-                        
-                        _persist_history(history)
-                    except Exception as e:
-                        st.error(f"Error updating history: {e}")
-                    
-                    st.rerun()
+                    if _delete_selected_rows(selected_indices, df_full, str(st.session_state.get('current_search_id'))):
+                        st.rerun()
         
         with col2:
             # Keep the export functionality

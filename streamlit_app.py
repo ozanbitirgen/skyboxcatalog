@@ -113,7 +113,7 @@ def _save_search(params, df, raw):
             'StubhubEventId': df[_DEF_STUBHUB_COL] if _DEF_STUBHUB_COL in df.columns else [0] * len(df),
             'UnitCost': [float(st.session_state.get('unit_cost', 800.0))] * len(df),
             'FaceValue': [''] * len(df),
-            'AutoBroadcast': [True] * len(df),
+            'AutoBroadcastCreatedListing': [True] * len(df),
             'SellerOwn': [False] * len(df),
             'ListingNotes': [''] * len(df),
         })
@@ -236,7 +236,7 @@ def _update_export_settings(entry_id, section, unit_cost):
                         'StubhubEventId': df[_DEF_STUBHUB_COL] if _DEF_STUBHUB_COL in df.columns else [0] * len(df),
                         'UnitCost': [float(unit_cost)] * len(df),
                         'FaceValue': [''] * len(df),
-                        'AutoBroadcast': [True] * len(df),
+                        'AutoBroadcastCreatedListing': [True] * len(df),
                         'SellerOwn': [False] * len(df),
                         'ListingNotes': [''] * len(df),
                     })
@@ -527,7 +527,7 @@ if st.session_state['rows_df'] is not None:
                     'StubhubEventId': sh_series,
                     'UnitCost': [float(st.session_state.get('unit_cost', 800))] * len(selected_full),
                     'FaceValue': [''] * len(selected_full),
-                    'AutoBroadcast': [True] * len(selected_full),
+                    'AutoBroadcastCreatedListing': [True] * len(selected_full),
                     'SellerOwn': [False] * len(selected_full),
                     'ListingNotes': [''] * len(selected_full),
                 })
